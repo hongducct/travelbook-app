@@ -15,6 +15,14 @@ return new class extends Migration
     {
         Schema::create('vehicles', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('vendor_id');
+            $table->enum('vehicle_type', ['car', 'bus', 'motorbike']);
+            $table->string('model');
+            $table->integer('capacity');
+            $table->decimal('price_per_day', 10, 2);
+            $table->string('image')->nullable();
+            $table->text('features')->nullable();
+            $table->foreign('vendor_id')->references('id')->on('vendors')->onDelete('cascade');
             $table->timestamps();
         });
     }
