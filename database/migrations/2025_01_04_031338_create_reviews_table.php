@@ -20,8 +20,10 @@ return new class extends Migration
             $table->string('reviewable_type');
             $table->integer('rating');
             $table->text('comment')->nullable();
+            $table->unsignedBigInteger('tour_id');
             $table->timestamps();
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('tour_id')->references('id')->on('tours')->onDelete('cascade');
         });
     }
 
