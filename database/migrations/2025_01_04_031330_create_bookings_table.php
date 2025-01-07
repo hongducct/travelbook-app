@@ -16,15 +16,17 @@ return new class extends Migration
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->integer('bookable_id');
+            $table->unsignedBigInteger('bookable_id');
             $table->string('bookable_type');
             $table->date('start_date');
             $table->date('end_date')->nullable();
-            $table->integer('number_of_guests')->nullable();
+            $table->unsignedInteger('number_of_guests_adults');
+            $table->unsignedInteger('number_of_children')->nullable();
             $table->decimal('total_price', 10, 2);
             $table->enum('status', ['pending', 'confirmed', 'cancelled'])->default('pending');
             $table->timestamps();
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('bookable_id')->references('id')->on('tours')->onDelete('cascade');
         });
     }
 

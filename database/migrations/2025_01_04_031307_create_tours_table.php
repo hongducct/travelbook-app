@@ -19,9 +19,9 @@ return new class extends Migration
             $table->unsignedBigInteger('location_id');
             $table->string('name');
             $table->text('description')->nullable();
-            $table->integer('duration');
-            $table->decimal('price', 10, 2);
-            $table->string('image')->nullable();
+            $table->unsignedInteger('days'); // Thêm cột days (số ngày)
+            $table->unsignedInteger('nights'); // Thêm cột nights (số đêm)
+            $table->string('category');
             $table->text('features')->nullable();
             $table->foreign('vendor_id')->references('id')->on('vendors')->onDelete('cascade');
             $table->foreign('location_id')->references('id')->on('locations')->onDelete('cascade');
