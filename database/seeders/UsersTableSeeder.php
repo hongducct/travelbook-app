@@ -31,8 +31,9 @@ class UsersTableSeeder extends Seeder
                 'description' => $faker->sentence,
                 'avatar' => $faker->imageUrl(640, 480, 'people', true),
                 'address' => $faker->address,
-                'role' => $faker->randomElement(['user', 'vendor']),
+                // 'role' => $faker->randomElement(['user', 'vendor']),
                 'is_vendor' => $faker->boolean(30), // 30% chance of being a vendor
+                'gender' => $faker->randomElement(['male', 'female', 'other']), // Add gender field
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -50,8 +51,9 @@ class UsersTableSeeder extends Seeder
             'description' => 'Administrator account',
             'avatar' => null,
             'address' => 'Admin Address',
-            'role' => 'user', // You might want to create a separate 'admin' role in a real app
+            // 'role' => 'user', // You might want to create a separate 'admin' role in a real app
             'is_vendor' => false,
+            'gender' => $faker->randomElement(['male', 'female', 'other']), // Add gender field for admin user
             'created_at' => now(),
             'updated_at' => now(),
         ]);

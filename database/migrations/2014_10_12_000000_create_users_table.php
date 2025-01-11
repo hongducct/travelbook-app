@@ -27,7 +27,8 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->string('avatar')->nullable();
             $table->text('address')->nullable();
-            $table->enum('role', ['user', 'vendor'])->default('user');
+            // $table->enum('role', ['user', 'vendor'])->default('user');
+            $table->enum('gender', ['male', 'female', 'other'])->nullable();
             $table->boolean('is_vendor')->default(false);
             $table->timestamps();
         });

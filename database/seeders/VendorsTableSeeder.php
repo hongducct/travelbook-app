@@ -26,7 +26,7 @@ class VendorsTableSeeder extends Seeder
         $packages = Package::pluck('id')->toArray();
 
         // Tạo vendor cho những user có is_vendor = true
-        $vendorUsers = User::where('role', 'vendor')->get();
+        $vendorUsers = User::where('is_vendor', '1')->get();
 
         foreach ($vendorUsers as $user) {
             Vendor::create([
