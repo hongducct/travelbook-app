@@ -24,12 +24,12 @@ class PricesTableSeeder extends Seeder
                 Price::create([
                     'tour_id' => $tour->id,
                     'date' => $startDate->format('Y-m-d'),
-                    'price' => $faker->randomFloat(2, 100, 1000), // Giá ngẫu nhiên từ 100 đến 1000
+                    'price' => $faker->randomFloat(0, 100000, 20000000), // Giá ngẫu nhiên từ 100 đến 1000
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
                 // Tăng ngày lên 5-10 ngày
-                $startDate->addDays($faker->numberBetween(5, 10));
+                $startDate->addDays($faker->numberBetween(10, 20));
             }
         }
     }

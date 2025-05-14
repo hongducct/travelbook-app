@@ -20,9 +20,10 @@ return new class extends Migration
             $table->text('content')->nullable();
             $table->string('image')->nullable();
             $table->timestamp('published_at')->nullable();
+            $table->enum('blog_status', ['draft', 'pending', 'rejected', 'published', 'archived'])->default('draft');
             $table->foreign('vendor_id')->references('id')->on('vendors')->onDelete('cascade');
             $table->timestamps();
-        });
+        });        
     }
 
     /**

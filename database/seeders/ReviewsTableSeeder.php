@@ -20,20 +20,24 @@ class ReviewsTableSeeder extends Seeder
         $faker = Faker::create();
         $users = User::all();
         $tours = Tour::all();
+        $statuses = ['approved', 'pending', 'rejected'];
 
         foreach ($users as $user) {
-            $reviewedTours = $faker->randomElements($tours, $faker->numberBetween(1, 5)); // Each user reviews 1-5 random tours
+            $reviewedTours = $faker->randomElements($tours->toArray(), $faker->numberBetween(1, min(5, $tours->count())));
 
             foreach ($reviewedTours as $tour) {
                 Review::create([
-                    'user_id' => $user->id,
-                    'reviewable_id' => $tour->id,
+                    'user_id'       => $user->id,
+                    'booking_id'    => $faker->optional(0.8)->numberBetween(1, 5), // Giữ nguyên
+                    'reviewable_id'   => $tour['id'],
                     'reviewable_type' => 'App\Models\Tour',
-                    'rating' => $faker->numberBetween(1, 5),
-                    'comment' => $faker->optional(0.7)->paragraph, // 70% chance of having a comment
-                    'tour_id' => $tour->id, // Redundant with reviewable_id and reviewable_type
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'title'         => $faker->sentence(3), // Giữ nguyên
+                    'rating'        => $faker->numberBetween(1, 5),
+                    'comment'       => $faker->optional(0.7)->paragraph,
+                    'status'        => $faker->randomElement($statuses),
+                    'replied_at'    => $faker->optional(0.3)->dateTimeThisYear(), // Giữ nguyên
+                    'created_at'    => now(),
+                    'updated_at'    => now(),
                 ]);
             }
         }

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->date('start_date');
             $table->date('end_date');
             $table->integer('usage_limit')->nullable();
+            $table->json('applicable_tour_ids')->nullable();
             $table->timestamps();
         });
     }

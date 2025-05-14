@@ -21,16 +21,20 @@ class DatabaseSeeder extends Seeder
             ToursTableSeeder::class,
             PricesTableSeeder::class,
             NewsTableSeeder::class,
-            BookingsTableSeeder::class,
-            FavoritesTableSeeder::class,
-            ReviewsTableSeeder::class,
-            ItinerariesTableSeeder::class,
             VouchersTableSeeder::class,
+            FavoritesTableSeeder::class,
+            ItinerariesTableSeeder::class,
             ItineraryImagesTableSeeder::class,
             TourImagesTableSeeder::class,
+            TourAvailabilitySeeder::class, // Add TourAvailability seeder
             TravelTypesTableSeeder::class, // Add TravelTypes seeder
             AmenitiesTableSeeder::class, // Add Amenities seeder
             AmenityTourTableSeeder::class,
+            AdminsTableSeeder::class, // Add Admins seeder
+            PaymentSeeder::class, // Add Payment seeder
+            BookingsTableSeeder::class,
+            VoucherUsageSeeder::class, // Add VoucherUsage seeder
+            ReviewsTableSeeder::class,
         ]);
     }
 }

@@ -8,12 +8,13 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::create('tour_images', function (Blueprint $table) {
+        Schema::create('tour_availabilities', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('tour_id');
-            $table->string('image_url');
-            $table->string('caption')->nullable();
-            $table->boolean('is_primary')->default(false);
+            $table->date('date');
+            $table->unsignedInteger('max_guests');
+            $table->unsignedInteger('available_slots');
+            $table->boolean('is_active')->default(true);
             $table->foreign('tour_id')->references('id')->on('tours')->onDelete('cascade');
             $table->timestamps();
         });
@@ -21,6 +22,6 @@ return new class extends Migration
 
     public function down()
     {
-        Schema::dropIfExists('tour_images');
+        Schema::dropIfExists('tour_availabilities');
     }
 };

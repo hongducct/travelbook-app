@@ -27,9 +27,10 @@ class NewsTableSeeder extends Seeder
                     'content' => $faker->paragraphs(3, true),
                     'image' => $faker->imageUrl(640, 480, 'business', true),
                     'published_at' => $faker->dateTimeBetween('-1 year', 'now'),
+                    'blog_status' => $faker->randomElement(['draft', 'pending', 'rejected', 'published', 'archived']),
                     'created_at' => now(),
                     'updated_at' => now(),
-                ]);
+                ]);                
             }
         }
     }

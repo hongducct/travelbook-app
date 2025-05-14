@@ -30,8 +30,27 @@ class User extends Authenticatable
         'address',
         'gender',
         'is_vendor',
+        'user_status',
     ];
 
+    // Scope: chỉ user active
+    public function scopeActive($query)
+    {
+        return $query->where('user_status', 'active');
+    }
+
+    // Scope: chỉ user inactive
+    public function scopeInactive($query)
+    {
+        return $query->where('user_status', 'inactive');
+    }
+
+    // Scope: chỉ user banned
+    public function scopeBanned($query)
+    {
+        return $query->where('user_status', 'banned');
+    }
+    
     /**
      * The attributes that should be hidden for serialization.
      *

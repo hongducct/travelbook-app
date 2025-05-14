@@ -2,20 +2,34 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule; // Import Rule class
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $users = User::all();
+        $perPage = $request->query('per_page', 10);
+        $status = $request->query('status');
+
+        $query = User::query();
+
+        if ($status === 'active') {
+            $query->active();
+        } elseif ($status === 'inactive') {
+            $query->inactive();
+        } elseif ($status === 'banned') {
+            $query->banned();
+        }
+
+        $users = $query->paginate($perPage);
         return UserResource::collection($users);
     }
+
 
     public function store(Request $request)
     {
@@ -25,13 +39,14 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'phone_number' => 'required|string|max:20',
+            'phone_number' => 'required|string|regex:/^[0-9]+$/|max:20', // Updated: Chỉ cho phép số
             'date_of_birth' => 'nullable|date',
             'description' => 'nullable|string',
             'avatar' => 'nullable|string',
             'address' => 'nullable|string',
             'is_vendor' => 'nullable|boolean',
-            'gender' => 'nullable|string|in:male,female,other', // Add gender validation
+            'gender' => 'nullable|string|in:male,female,other',
+            'user_status' => 'nullable|string|in:active,inactive,banned', // updated here
         ]);
 
         if ($validator->fails()) {
@@ -50,8 +65,10 @@ class UserController extends Controller
             'avatar' => $request->avatar,
             'address' => $request->address,
             'is_vendor' => $request->is_vendor ?? false,
-            'gender' => $request->gender, // Add gender to creation
+            'gender' => $request->gender,
+            'user_status' => $request->user_status ?? 'active', // default active
         ]);
+        $token = $user->createToken('user-token')->plainTextToken;
 
         return new UserResource($user);
     }
@@ -71,11 +88,11 @@ class UserController extends Controller
             $rules['password_confirmation'] = 'required|string|min:8';
         } else {
             if ($request->has('username')) {
-                $rules['username'] = 'required|string|max:255|unique:users,username,' . $user->id;
+                $rules['username'] = ['required','string','max:255',Rule::unique('users')->ignore($user->id)];
             }
 
             if ($request->has('email')) {
-                $rules['email'] = 'required|string|email|max:255|unique:users,email,' . $user->id;
+               $rules['email'] = ['required','string','email','max:255',Rule::unique('users')->ignore($user->id)];
             }
 
             if ($request->has('first_name')) {
@@ -87,7 +104,7 @@ class UserController extends Controller
             }
 
             if ($request->has('phone_number')) {
-                $rules['phone_number'] = 'required|string|max:20';
+                 $rules['phone_number'] = ['required','string','regex:/^[0-9]+$/','max:20'];
             }
 
             if ($request->has('date_of_birth')) {
@@ -109,8 +126,13 @@ class UserController extends Controller
             if ($request->has('is_vendor')) {
                 $rules['is_vendor'] = 'nullable|boolean';
             }
+
             if ($request->has('gender')) {
                 $rules['gender'] = 'nullable|string|in:male,female,other';
+            }
+
+            if ($request->has('user_status')) {
+                $rules['user_status'] = 'nullable|string|in:active,inactive,banned';
             }
         }
 
@@ -127,8 +149,7 @@ class UserController extends Controller
                 return response()->json(['errors' => ['current_password' => ['Mật khẩu hiện tại không đúng.']]], 422);
             }
             $data['password'] = Hash::make($data['password']);
-            unset($data['current_password']);
-            unset($data['password_confirmation']);
+            unset($data['current_password'], $data['password_confirmation']);
         }
 
         $user->update($data);
@@ -141,4 +162,86 @@ class UserController extends Controller
         $user->delete();
         return response()->json(null, 204);
     }
+
+    public function login(Request $request)
+    {
+        $request->validate([
+            'login' => 'required|string', // username hoặc email
+            'password' => 'required|string',
+        ]);
+
+        $user = User::where('username', $request->login)
+            ->orWhere('email', $request->login)
+            ->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
+        }
+
+        // Nếu dùng Laravel Sanctum hoặc Passport, có thể tạo token ở đây
+        $token = $user->createToken('user-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful',
+            'token' => $token,
+            'user' => new UserResource($user),
+        ]);
+    }
+
+    public function register(Request $request)
+    {
+        $request->validate([
+            'username' => 'required|string|unique:users,username',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6|confirmed', // cần password_confirmation
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'phone_number' => ['required', 'string', 'regex:/^[0-9]+$/', 'max:20'], // Thêm regex để kiểm tra số
+        ]);
+        $avatarUrl = 'https://i.pravatar.cc/300?u=' . uniqid();
+
+        $user = User::create([
+            'username' => $request->username,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
+            'phone_number' => $request->phone_number,
+            'avatar' => $avatarUrl, // Lưu URL avatar vào database
+        ]);
+
+        $token = $user->createToken('user-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Register successful',
+            'token' => $token,
+            'user' => new UserResource($user),
+        ]);
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Logged out successfully',
+        ]);
+    }
+
+    public function profile(Request $request)
+    {
+        $user = $request->user();
+
+        return response()->json([
+            'id' => $user->id,
+            'username' => $user->username,
+            'email' => $user->email,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'avatar' => $user->avatar,
+            'is_vendor' => $user->is_vendor,
+            'user_status' => $user->user_status,
+        ]);
+    }
 }
+

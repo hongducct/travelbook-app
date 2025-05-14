@@ -6,11 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     *
-     * @return void
-     */
     public function up()
     {
         Schema::create('users', function (Blueprint $table) {
@@ -30,15 +25,11 @@ return new class extends Migration
             // $table->enum('role', ['user', 'vendor'])->default('user');
             $table->enum('gender', ['male', 'female', 'other'])->nullable();
             $table->boolean('is_vendor')->default(false);
+            $table->enum('user_status', ['active', 'inactive', 'banned'])->default('active'); // <-- thêm trường này
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     *
-     * @return void
-     */
     public function down()
     {
         Schema::dropIfExists('users');
