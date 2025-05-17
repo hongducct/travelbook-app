@@ -18,6 +18,34 @@ class Vendor extends Model
     {
         return $this->hasMany(News::class);
     }
+    /**
+     * Get the tours for the vendor.
+     */
+    public function tours()
+    {
+        return $this->hasMany(Tour::class);
+    }
+    /**
+     * Get the bookings for the vendor.
+     */
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
+    }
+    /**
+     * Get the payments for the vendor.
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+    /**
+     * Get the reviews for the vendor.
+     */
+    public function reviews()
+    {
+        return $this->hasMany(Review::class);
+    }
 
     /**
      * Get the user that owns the vendor.

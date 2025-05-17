@@ -8,4 +8,15 @@ use Illuminate\Database\Eloquent\Model;
 class Price extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'tour_id',
+        'date',
+        'price',
+    ];
+
+    public function tour()
+    {
+        return $this->belongsTo(Tour::class);
+    }
 }

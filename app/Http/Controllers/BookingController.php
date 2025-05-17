@@ -184,7 +184,7 @@ class BookingController extends Controller
 
                 // Tạo Payment nếu không phải VNPay
                 $payment = null;
-                if (!in_array($paymentMethod, ['credit_card', 'bank_transfer'])) {
+                if (!in_array($paymentMethod, ['vnpay'])) {
                     $payment = Payment::create([
                         'user_id' => auth()->id(),
                         'amount' => $totalPrice,

@@ -69,7 +69,7 @@ class PaymentController extends Controller
         $validator = Validator::make($request->all(), [
             'booking_id' => 'required|exists:bookings,id',
             'amount' => 'required|numeric|min:10000',
-            'method' => 'required|in:credit_card,bank_transfer',
+            'method' => 'required|in:vnpay',
         ]);
 
         if ($validator->fails()) {

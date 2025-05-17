@@ -29,7 +29,7 @@ class StoreBookingRequest extends FormRequest
             'voucher_code' => 'nullable|string',
             'special_requests' => 'nullable|string|max:1000',
             'contact_phone' => 'required|string|max:20',
-            'payment_method' => 'required|in:cash,bank_transfer,credit_card,paypal',
+            'payment_method' => 'required|in:cash,vnpay',
         ];
     }
 

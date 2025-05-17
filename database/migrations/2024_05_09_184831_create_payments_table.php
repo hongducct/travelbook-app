@@ -13,7 +13,8 @@ return new class extends Migration
             // $table->unsignedBigInteger('booking_id');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->decimal('amount', 12, 2);
-            $table->enum('method', ['credit_card', 'bank_transfer', 'paypal', 'cash'])->nullable();
+            // $table->enum('method', ['credit_card', 'bank_transfer', 'paypal', 'cash'])->nullable();
+            $table->enum('method', ['vnpay', 'cash'])->default('cash');
             $table->enum('status', ['pending', 'completed', 'failed'])->default('pending');
             $table->string('transaction_id')->nullable();
             // $table->foreign('booking_id')->references('id')->on('bookings')->onDelete('cascade');

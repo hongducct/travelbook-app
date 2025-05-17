@@ -20,7 +20,7 @@ class PaymentSeeder extends Seeder
             Payment::create([
                 'user_id' => $faker->randomElement($users)->id,
                 'amount' => $faker->randomFloat(2, 500000, 5000000), // Giá từ 500k đến 5M
-                'method' => $faker->randomElement(['credit_card', 'bank_transfer', 'paypal', 'cash']),
+                'method' => $faker->randomElement(['vnpay', 'cash']),
                 'status' => $faker->randomElement(['pending', 'completed', 'failed']),
                 'transaction_id' => 'TXN_' . $faker->uuid,
             ]);

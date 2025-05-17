@@ -8,4 +8,16 @@ use Illuminate\Database\Eloquent\Model;
 class TourImage extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'tour_id',
+        'image_url',
+        'caption',
+        'is_primary',
+    ];
+
+    public function tour()
+    {
+        return $this->belongsTo(Tour::class);
+    }
 }
