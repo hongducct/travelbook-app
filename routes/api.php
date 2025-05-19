@@ -16,6 +16,8 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\VoucherController;
 use App\Http\Controllers\VoucherUsageController;
 use App\Http\Controllers\VendorController;
+use App\Http\Controllers\TravelTypeController;
+use App\Http\Controllers\FeatureController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,9 +37,11 @@ Route::apiResource('tours', TourController::class);
 Route::get('/tours/{tourId}/prices', [TourController::class, 'getPrices']);
 // Route::apiResource('users', UserController::class);
 Route::apiResource('packages', PackageController::class);
-// Route::apiResource('locations', LocationController::class);
-Route::get('/locations', [LocationController::class, 'index']);
+Route::apiResource('locations', LocationController::class)->only(['index', 'store', 'tours']);;
+// Route::get('/locations', [LocationController::class, 'index']);
 Route::get('/locations/{id}/tours', [LocationController::class, 'tours']);
+Route::apiResource('travel-types', TravelTypeController::class);
+Route::apiResource('features', FeatureController::class);
 Route::apiResource('vendors', VendorController::class);
 Route::apiResource('prices', PriceController::class);
 Route::apiResource('news', NewsController::class);

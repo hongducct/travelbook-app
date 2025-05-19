@@ -5,17 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class TravelType extends Model
+class Feature extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'name',
-        'description',
-    ];
+    protected $fillable = ['name', 'description', 'is_active'];
 
     public function tours()
     {
-        return $this->hasMany(Tour::class, 'travel_type_id');
+        return $this->belongsToMany(Tour::class, 'feature_tour', 'feature_id', 'tour_id');
     }
 }

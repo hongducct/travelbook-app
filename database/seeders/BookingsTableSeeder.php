@@ -138,7 +138,7 @@ class BookingsTableSeeder extends Seeder
                 $payment = Payment::create([
                     'user_id' => $user->id,
                     'amount' => $totalPrice,
-                    'method' => $faker->randomElement(['credit_card', 'bank_transfer', 'paypal', 'cash']),
+                    'method' => $faker->randomElement(['vnpay', 'cash']),
                     'status' => $faker->randomElement(['pending', 'completed', 'failed']),
                     'transaction_id' => 'TXN_' . $faker->uuid,
                 ]);

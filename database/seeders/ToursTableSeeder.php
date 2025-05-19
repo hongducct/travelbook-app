@@ -6,6 +6,7 @@ use Illuminate\Database\Seeder;
 use Faker\Factory as Faker;
 use App\Models\Vendor;
 use App\Models\Location;
+use App\Models\TravelType;
 use App\Models\Tour;
 
 class ToursTableSeeder extends Seeder
@@ -14,17 +15,12 @@ class ToursTableSeeder extends Seeder
     {
         $faker = Faker::create();
 
-        $categories = [
-            'Adventure', 'Cultural', 'Relaxation', 'Food', 'Historical',
-            'Spiritual', 'Nature', 'Family', 'Honeymoon', 'City Breaks',
-            'Eco-tourism', 'Volunteer',
-        ];
-
         $vendorIds = Vendor::pluck('id')->toArray();
         $locationIds = Location::pluck('id')->toArray();
+        $travelTypeIds = TravelType::pluck('id')->toArray();
 
-        if (empty($vendorIds) || empty($locationIds)) {
-            $this->command->info('Không có Vendor hoặc Location nào để tạo Tour. Hãy seed Vendor và Location trước.');
+        if (empty($vendorIds) || empty($locationIds) || empty($travelTypeIds)) {
+            $this->command->info('Không có Vendor, Location hoặc TravelType nào để tạo Tour. Hãy seed Vendor, Location và TravelType trước.');
             return;
         }
 
@@ -42,16 +38,16 @@ class ToursTableSeeder extends Seeder
             Tour::create([
                 'vendor_id' => $faker->randomElement($vendorIds),
                 'location_id' => $faker->randomElement($locationIds),
+                'travel_type_id' => $faker->randomElement($travelTypeIds), // Replaced category with travel_type_id
                 'name' => $faker->sentence(3) . " Tour",
                 'description' => $faker->paragraphs(3, true),
                 'days' => $days,
                 'nights' => $nights,
-                'category' => $faker->randomElement($categories),
-                'features' => json_encode($faker->randomElements([
-                    'Guided Tours', 'Meals Included', 'Accommodation',
-                    'Transportation', 'Entrance Fees', 'Local Guide',
-                    'Pick-up/Drop-off', 'Activities', 'Sightseeing', 'Insurance'
-                ], $faker->numberBetween(1, 8))),
+                // 'features' => json_encode($faker->randomElements([
+                //     'Guided Tours', 'Meals Included', 'Accommodation',
+                //     'Transportation', 'Entrance Fees', 'Local Guide',
+                //     'Pick-up/Drop-off', 'Activities', 'Sightseeing', 'Insurance'
+                // ], $faker->numberBetween(1, 8))),
             ]);
         }
     }

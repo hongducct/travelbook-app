@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             PackagesTableSeeder::class,
             VendorsTableSeeder::class,
             LocationsTableSeeder::class,
+            TravelTypesTableSeeder::class, // Add TravelTypes seeder
             ToursTableSeeder::class,
             PricesTableSeeder::class,
             NewsTableSeeder::class,
@@ -27,7 +28,6 @@ class DatabaseSeeder extends Seeder
             ItineraryImagesTableSeeder::class,
             TourImagesTableSeeder::class,
             TourAvailabilitySeeder::class, // Add TourAvailability seeder
-            TravelTypesTableSeeder::class, // Add TravelTypes seeder
             AmenitiesTableSeeder::class, // Add Amenities seeder
             AmenityTourTableSeeder::class,
             AdminsTableSeeder::class, // Add Admins seeder
@@ -35,6 +35,7 @@ class DatabaseSeeder extends Seeder
             BookingsTableSeeder::class,
             VoucherUsageSeeder::class, // Add VoucherUsage seeder
             ReviewsTableSeeder::class,
+            FeatureTableSeeder::class,
         ]);
     }
 }

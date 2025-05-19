@@ -10,21 +10,20 @@ class Tour extends Model
     use HasFactory;
 
     protected $fillable = [
-        'vendor_id',
-        'location_id',
         'name',
         'description',
         'days',
         'nights',
-        'category',
-        'features',
+        'travel_type_id',
+        'location_id',
+        'vendor_id',
     ];
 
-    protected $casts = ['features' => 'array'];
+    protected $casts = [];
 
-    public function vendor()
+    public function travelType()
     {
-        return $this->belongsTo(Vendor::class);
+        return $this->belongsTo(TravelType::class, 'travel_type_id');
     }
 
     public function location()
@@ -32,24 +31,38 @@ class Tour extends Model
         return $this->belongsTo(Location::class);
     }
 
+    public function vendor()
+    {
+        return $this->belongsTo(Vendor::class);
+    }
+
+    public function images()
+    {
+        return $this->hasMany(TourImage::class);
+    }
+
+    public function availabilities()
+    {
+        return $this->hasMany(TourAvailability::class);
+    }
+
     public function prices()
     {
         return $this->hasMany(Price::class);
     }
 
-    public function reviews()
+    public function features()
     {
-        return $this->morphMany(Review::class, 'reviewable');
+        return $this->belongsToMany(Feature::class, 'feature_tour', 'tour_id', 'feature_id');
     }
-    public function bookings()
+
+    /**
+     * Convert the model instance to an array.
+     */
+    public function toArray()
     {
-        return $this->hasMany(Booking::class);
-    }
-    public function images()
-    {
-        return $this->hasMany(TourImage::class);
-    }
-    public  function availabilities(){
-        return $this->hasMany(TourAvailability::class);
+        $attributes = parent::toArray();
+        $attributes['features'] = $this->features->pluck('name')->toArray();
+        return $attributes;
     }
 }

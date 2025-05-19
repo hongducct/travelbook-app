@@ -17,14 +17,15 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('vendor_id');
             $table->unsignedBigInteger('location_id');
+            $table->unsignedBigInteger('travel_type_id'); // Replaced category with travel_type_id
             $table->string('name');
             $table->text('description')->nullable();
-            $table->unsignedInteger('days'); // Thêm cột days (số ngày)
-            $table->unsignedInteger('nights'); // Thêm cột nights (số đêm)
-            $table->string('category');
-            $table->text('features')->nullable();
+            $table->unsignedInteger('days');
+            $table->unsignedInteger('nights');
+            // $table->text('features')->nullable();
             $table->foreign('vendor_id')->references('id')->on('vendors')->onDelete('cascade');
             $table->foreign('location_id')->references('id')->on('locations')->onDelete('cascade');
+            $table->foreign('travel_type_id')->references('id')->on('travel_types')->onDelete('cascade');
             $table->timestamps();
         });
     }
