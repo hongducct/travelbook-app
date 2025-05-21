@@ -18,6 +18,7 @@ use App\Http\Controllers\VoucherUsageController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\TravelTypeController;
 use App\Http\Controllers\FeatureController;
+use App\Http\Controllers\NewsletterController;
 
 /*
 |--------------------------------------------------------------------------
@@ -47,6 +48,7 @@ Route::apiResource('prices', PriceController::class);
 Route::apiResource('news', NewsController::class);
 Route::apiResource('reviews', ReviewsController::class);
 Route::apiResource('admins', AdminController::class);
+Route::post('/subscribe', [NewsletterController::class, 'subscribe'])->middleware('throttle:10,1');
 // api login for admin
 Route::post('/admin/login', [AdminController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {

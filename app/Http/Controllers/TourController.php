@@ -17,9 +17,11 @@ class TourController extends Controller
     {
         $perPage = $request->input('perPage', 10);
         $search = $request->input('search');
+        $featured = $request->input('featured');
 
         $query = Tour::with(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features']);
 
+        // Add search functionality
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', '%' . $search . '%')
@@ -32,14 +34,35 @@ class TourController extends Controller
             });
         }
 
+        // Add option to get featured tours (most booked/reviewed)
+        if ($featured) {
+            // Example: Get tours with most reviews
+            $query->withCount('reviews')
+                ->orderBy('reviews_count', 'desc');
+        }
+
         $tours = $query->paginate($perPage);
 
         // Transform the response
         $tours->getCollection()->transform(function ($tour) {
+            // Get latest price
             $latestPrice = $tour->prices()->orderBy('date', 'desc')->first();
             $tour->price = $latestPrice?->price;
+
+            // Get travel type as category
             $tour->category = $tour->travelType?->name;
-            unset($tour->prices, $tour->travelType, $tour->features);
+
+            // Get average rating
+            $avgRating = $tour->reviews()->where('status', 'approved')->avg('rating');
+            $tour->average_rating = $avgRating;
+
+            // Get review count
+            $reviewCount = $tour->reviews()->where('status', 'approved')->count();
+            $tour->review_count = $reviewCount;
+
+            unset($tour->prices);
+            unset($tour->travelType);
+
             return $tour;
         });
 
@@ -51,14 +74,48 @@ class TourController extends Controller
      */
     public function show($id)
     {
-        $tour = Tour::with(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features'])->findOrFail($id);
+        $tour = Tour::with([
+            'travelType',
+            'location',
+            'vendor',
+            'images',
+            'availabilities',
+            'features',
+            'reviews' => function ($query) {
+                $query->where('status', 'approved')
+                    ->with('user:id,username,avatar');
+            }
+        ])->findOrFail($id);
 
+        // Get latest price
         $latestPrice = $tour->prices()->orderBy('date', 'desc')->first();
         $tour->price = $latestPrice ? $latestPrice->price : null;
+
+        // Get travel type as category
         $tour->category = $tour->travelType?->name;
-        unset($tour->prices, $tour->travelType, $tour->features);
+
+        // Calculate average rating
+        $tour->average_rating = $tour->reviews->avg('rating');
+
+        unset($tour->prices);
+        unset($tour->travelType);
 
         return response()->json($tour);
+    }
+
+    /**
+     * Get reviews for a tour.
+     */
+    public function getReviews($tourId)
+    {
+        $tour = Tour::findOrFail($tourId);
+        $reviews = $tour->reviews()
+            ->where('status', 'approved')
+            ->with('user:id,name,avatar')
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        return response()->json($reviews);
     }
 
     /**
