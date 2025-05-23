@@ -1,4 +1,4 @@
-FROM php:8.2-fpm
+FROM php:8.2
 
 WORKDIR /var/www
 
@@ -10,14 +10,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 COPY . .
 
-RUN composer install --no-dev --optimize-autoloader
-
-RUN php artisan config:clear && php artisan route:clear && php artisan view:clear \
-    && php artisan config:cache && php artisan route:cache && php artisan view:cache
+RUN composer install --no-dev --optimize-autoloader \
+    && php artisan config:clear \
+    && php artisan route:clear \
+    && php artisan view:clear
 
 RUN chmod -R 775 storage bootstrap/cache && chown -R www-data:www-data storage bootstrap/cache
 
-# Railway sẽ inject PORT, ta đọc từ biến môi trường
-ENV PORT=8000
+ENV PORT=8080
 EXPOSE $PORT
-CMD php artisan serve --host=0.0.0.0 --port=$PORT
+
+CMD php -d variables_order=EGPCS -S 0.0.0.0:$PORT -t public
