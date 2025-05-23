@@ -92,7 +92,11 @@ class Tour extends Model
     {
         return $this->morphMany(Review::class, 'reviewable');
     }
-
+    
+    public function favorites()
+    {
+        return $this->morphMany(Favorite::class, 'favoritable');
+    }
     /**
      * Calculate the average rating of the tour.
      *

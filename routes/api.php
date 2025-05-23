@@ -19,6 +19,7 @@ use App\Http\Controllers\VendorController;
 use App\Http\Controllers\TravelTypeController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\NewsletterController;
+use App\Http\Controllers\FavoriteController;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,6 +61,8 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::post('/user/login', [UserController::class, 'login']);
 // // api register for user
 Route::post('/user/register', [UserController::class, 'register']);
+Route::get('/auth/google', [UserController::class, 'redirectToGoogle']);
+Route::get('/auth/google/callback', [UserController::class, 'handleGoogleCallback']);
 // // api logout for user
 // Protected user routes
 Route::apiResource('users', UserController::class); // Bảo vệ tất cả các route users
@@ -76,6 +79,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payments/{id}', [PaymentController::class, 'show']);
     Route::patch('/payments/{id}/status', [PaymentController::class, 'updateStatus']);
     Route::post('/payments/vnpay', [PaymentController::class, 'createVNPayPayment']);
+
+    // Favorite routes
+    Route::get('/user/wishlist', [FavoriteController::class, 'index']);
+    Route::post('/user/wishlist', [FavoriteController::class, 'store']);
+    Route::delete('/user/wishlist/{tourId}', [FavoriteController::class, 'destroy']);
+    Route::get('/user/wishlist/check/{tourId}', [FavoriteController::class, 'check']);
 });
 
 Route::get('/payments/vnpay/callback', [PaymentController::class, 'vnpayCallback']);

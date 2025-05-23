@@ -21,6 +21,7 @@ class User extends Authenticatable
         'username',
         'email',
         'password',
+        'google_id',
         'first_name',
         'last_name',
         'phone_number',
@@ -32,6 +33,18 @@ class User extends Authenticatable
         'is_vendor',
         'user_status',
     ];
+
+    public function favorites()
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    public function wishlist()
+    {
+        return $this->hasMany(Favorite::class)
+            ->where('favoritable_type', 'App\\Models\\Tour')
+            ->with('favoritable');
+    }
 
     // Scope: chỉ user active
     public function scopeActive($query)
@@ -50,7 +63,7 @@ class User extends Authenticatable
     {
         return $query->where('user_status', 'banned');
     }
-    
+
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -59,6 +72,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'google_id',
     ];
 
     /**
