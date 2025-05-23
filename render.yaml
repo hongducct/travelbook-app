@@ -1,0 +1,113 @@
+# Exported from Render on 2025-05-23T04:48:13Z
+services:
+  - type: web
+    name: travelbook-app
+    runtime: docker
+    repo: https://github.com/hongducct/travelbook-app
+    plan: free
+    envVars:
+      - key: FRONTEND_URL
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: BITLY_ACCESS_TOKEN
+        sync: false
+      - key: VNPAY_RETURN_URL
+        sync: false
+      - key: VNPAY_HASH_SECRET
+        sync: false
+      - key: VNPAY_TMN_CODE
+        sync: false
+      - key: VITE_PUSHER_APP_CLUSTER
+        sync: false
+      - key: VITE_PUSHER_SCHEME
+        sync: false
+      - key: VITE_PUSHER_PORT
+        sync: false
+      - key: VITE_PUSHER_HOST
+        sync: false
+      - key: VITE_PUSHER_APP_KEY
+        sync: false
+      - key: PUSHER_APP_CLUSTER
+        sync: false
+      - key: PUSHER_SCHEME
+        sync: false
+      - key: PUSHER_PORT
+        sync: false
+      - key: AWS_USE_PATH_STYLE_ENDPOINT
+        sync: false
+      - key: AWS_DEFAULT_REGION
+        sync: false
+      - key: MAIL_FROM_NAME
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_ENCRYPTION
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_MAILER
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: MEMCACHED_HOST
+        sync: false
+      - key: SESSION_LIFETIME
+        sync: false
+      - key: SESSION_DRIVER
+        sync: false
+      - key: QUEUE_CONNECTION
+        sync: false
+      - key: FILESYSTEM_DISK
+        sync: false
+      - key: CACHE_DRIVER
+        sync: false
+      - key: BROADCAST_DRIVER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_CONNECTION
+        sync: false
+      - key: LOG_LEVEL
+        sync: false
+      - key: LOG_DEPRECATIONS_CHANNEL
+        sync: false
+      - key: LOG_CHANNEL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: APP_DEBUG
+        sync: false
+      - key: APP_KEY
+        sync: false
+      - key: APP_ENV
+        sync: false
+      - key: APP_NAME
+        sync: false
+    region: oregon
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    autoDeployTrigger: commit
+version: "1"
