@@ -7,6 +7,8 @@ use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule; // Import Rule class
 
 class UserController extends Controller
@@ -88,11 +90,11 @@ class UserController extends Controller
             $rules['password_confirmation'] = 'required|string|min:8';
         } else {
             if ($request->has('username')) {
-                $rules['username'] = ['required','string','max:255',Rule::unique('users')->ignore($user->id)];
+                $rules['username'] = ['required', 'string', 'max:255', Rule::unique('users')->ignore($user->id)];
             }
 
             if ($request->has('email')) {
-               $rules['email'] = ['required','string','email','max:255',Rule::unique('users')->ignore($user->id)];
+                $rules['email'] = ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)];
             }
 
             if ($request->has('first_name')) {
@@ -104,7 +106,7 @@ class UserController extends Controller
             }
 
             if ($request->has('phone_number')) {
-                 $rules['phone_number'] = ['required','string','regex:/^[0-9]+$/','max:20'];
+                $rules['phone_number'] = ['required', 'string', 'regex:/^[0-9]+$/', 'max:20'];
             }
 
             if ($request->has('date_of_birth')) {
@@ -243,5 +245,49 @@ class UserController extends Controller
             'user_status' => $user->user_status,
         ]);
     }
-}
+    public function redirectToGoogle()
+    {
+        return Socialite::driver('google')->stateless()->redirect();
+    }
 
+    public function handleGoogleCallback()
+    {
+        try {
+            $googleUser = Socialite::driver('google')->stateless()->user();
+
+            // Find or create user
+            $user = User::where('email', $googleUser->email)->first();
+
+            if (!$user) {
+                $user = User::create([
+                    'username' => 'google_' . Str::random(10),
+                    'email' => $googleUser->email,
+                    'first_name' => $googleUser->user['given_name'] ?? 'Google',
+                    'last_name' => $googleUser->user['family_name'] ?? 'User',
+                    'phone_number' => null,
+                    'avatar' => $googleUser->avatar ?? 'https://i.pravatar.cc/300?u=' . uniqid(),
+                    // 'password' => Hash::make(Str::random(16)), // Random password for security
+                    'password' => null, // No password for Google login
+                    'google_id' => $googleUser->id,
+                ]);
+            } else {
+                // Update Google ID if not set
+                $user->update(['google_id' => $googleUser->id]);
+            }
+
+            $token = $user->createToken('user-token')->plainTextToken;
+
+            // Redirect to frontend with token
+            // return redirect()->away(
+            //     env('FRONTEND_URL', 'https://travel-booking.hongducct.id.vn') . '/auth/callback?token=' . $token
+            // );
+            return response()->json([
+                'message' => 'Register successful',
+                'token' => $token,
+                'user' => new UserResource($user),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Google login failed'], 500);
+        }
+    }
+}
