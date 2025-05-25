@@ -4,18 +4,29 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 
 class NewsResource extends JsonResource
 {
     public function toArray($request)
     {
+        $vendorName = null;
+
+        // If the author is an admin, construct vendor_name from admin's first_name and last_name
+        if ($this->author_type === 'admin' && $this->admin) {
+            $vendorName = trim(($this->admin->first_name ?? '') . ' ' . ($this->admin->last_name ?? ''));
+        } elseif ($this->author_type === 'vendor' && $this->vendor) {
+            // For vendors, use the company_name
+            $vendorName = $this->vendor->company_name;
+        }
+
         return [
             'id' => $this->id,
             'author_type' => $this->author_type,
             'admin_id' => $this->admin_id,
-            'admin_name' => $this->admin ? $this->admin->name : null, // Include admin's name
+            'admin_name' => $this->admin ? $this->admin->name : null, // Keep existing admin_name field
             'vendor_id' => $this->vendor_id,
-            'vendor_name' => $this->vendor ? $this->vendor->company_name : null, // Include vendor's company_name
+            'vendor_name' => $vendorName, // Use computed vendor_name
             'title' => $this->title,
             'content' => $this->content,
             'image_url' => $this->image,
