@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         $this->call([
+            AdminsTableSeeder::class, // Add Admins seeder
             UsersTableSeeder::class,
             PackagesTableSeeder::class,
             VendorsTableSeeder::class,
@@ -30,7 +31,6 @@ class DatabaseSeeder extends Seeder
             TourAvailabilitySeeder::class, // Add TourAvailability seeder
             AmenitiesTableSeeder::class, // Add Amenities seeder
             AmenityTourTableSeeder::class,
-            AdminsTableSeeder::class, // Add Admins seeder
             PaymentSeeder::class, // Add Payment seeder
             BookingsTableSeeder::class,
             VoucherUsageSeeder::class, // Add VoucherUsage seeder

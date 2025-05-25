@@ -55,6 +55,8 @@ Route::post('/admin/login', [AdminController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admins', [AdminController::class, 'index']);
     Route::post('/admins', [AdminController::class, 'store']);
+        // admin profile
+    Route::get('/admin/profile', [AdminController::class, 'profile']);
     // Các route admin khác...
 });
 // // api login for user

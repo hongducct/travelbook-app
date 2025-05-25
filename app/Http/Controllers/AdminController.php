@@ -107,4 +107,11 @@ class AdminController extends Controller
 
         return response()->json(['message' => 'Logout successful']);
     }
+
+    // admin profile
+    public function profile(Request $request)
+    {
+        $admin = $request->user();
+        return response()->json($admin);
+    }
 }
