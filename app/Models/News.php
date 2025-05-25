@@ -10,8 +10,23 @@ class News extends Model
     use HasFactory;
 
     protected $fillable = [
-        'vendor_id', 'title', 'content', 'image', 'published_at', 'blog_status',
+        'author_type',
+        'admin_id',
+        'vendor_id',
+        'title',
+        'content',
+        'image',
+        'published_at',
+        'blog_status',
     ];
+
+    /**
+     * Get the admin that owns the news article.
+     */
+    public function admin()
+    {
+        return $this->belongsTo(Admin::class);
+    }
 
     /**
      * Get the vendor that owns the news article.
@@ -32,9 +47,24 @@ class News extends Model
         return $query->where('blog_status', $status);
     }
 
-    public function isDraft() { return $this->blog_status === self::STATUS_DRAFT; }
-    public function isPending() { return $this->blog_status === self::STATUS_PENDING; }
-    public function isRejected() { return $this->blog_status === self::STATUS_REJECTED; }
-    public function isPublished() { return $this->blog_status === self::STATUS_PUBLISHED; }
-    public function isArchived() { return $this->blog_status === self::STATUS_ARCHIVED; }
+    public function isDraft()
+    {
+        return $this->blog_status === self::STATUS_DRAFT;
+    }
+    public function isPending()
+    {
+        return $this->blog_status === self::STATUS_PENDING;
+    }
+    public function isRejected()
+    {
+        return $this->blog_status === self::STATUS_REJECTED;
+    }
+    public function isPublished()
+    {
+        return $this->blog_status === self::STATUS_PUBLISHED;
+    }
+    public function isArchived()
+    {
+        return $this->blog_status === self::STATUS_ARCHIVED;
+    }
 }
