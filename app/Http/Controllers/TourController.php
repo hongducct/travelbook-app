@@ -81,6 +81,9 @@ class TourController extends Controller
             'images',
             'availabilities',
             'features',
+            'itineraries' => function ($query) {
+                $query->with('images')->orderBy('day');
+            },
             'reviews' => function ($query) {
                 $query->where('status', 'approved')
                     ->with('user:id,username,avatar');
@@ -130,6 +133,20 @@ class TourController extends Controller
     }
 
     /**
+     * Get itineraries for a tour.
+     */
+    public function getItineraries($tourId)
+    {
+        $tour = Tour::findOrFail($tourId);
+        $itineraries = $tour->itineraries()
+            ->with('images')
+            ->orderBy('day')
+            ->get();
+
+        return response()->json($itineraries);
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -165,13 +182,23 @@ class TourController extends Controller
                 'availabilities.*.max_guests' => 'required|integer|min:1',
                 'availabilities.*.available_slots' => 'required|integer|min:0',
                 'availabilities.*.is_active' => 'required|boolean',
+                'itineraries' => 'nullable|array',
+                'itineraries.*.day' => 'required|integer|min:1',
+                'itineraries.*.title' => 'required|string|max:255',
+                'itineraries.*.description' => 'nullable|string',
+                'itineraries.*.activities' => 'nullable|array',
+                'itineraries.*.accommodation' => 'nullable|string',
+                'itineraries.*.meals' => 'nullable|string',
+                'itineraries.*.start_time' => 'nullable|date_format:H:i',
+                'itineraries.*.end_time' => 'nullable|date_format:H:i',
+                'itineraries.*.notes' => 'nullable|string',
             ]);
 
             // Custom validation for available_slots <= max_guests
             foreach ($request->availabilities as $index => $availability) {
                 if ($availability['available_slots'] > $availability['max_guests']) {
                     $validator = Validator::make($request->all(), []);
-                    $validator->errors()->add("availabilities.$index.available_slots", "The availabilities-acceptance.$index.available_slots must be less than or equal to max guests.");
+                    $validator->errors()->add("availabilities.$index.available_slots", "The availabilities.$index.available_slots must be less than or equal to max guests.");
                     throw new \Illuminate\Validation\ValidationException($validator);
                 }
             }
@@ -214,6 +241,23 @@ class TourController extends Controller
             ]);
         }
 
+        // Create itineraries
+        if (!empty($validated['itineraries'])) {
+            foreach ($validated['itineraries'] as $itinerary) {
+                $tour->itineraries()->create([
+                    'day' => $itinerary['day'],
+                    'title' => $itinerary['title'],
+                    'description' => $itinerary['description'] ?? null,
+                    'activities' => $itinerary['activities'] ?? null,
+                    'accommodation' => $itinerary['accommodation'] ?? null,
+                    'meals' => $itinerary['meals'] ?? null,
+                    'start_time' => $itinerary['start_time'] ?? null,
+                    'end_time' => $itinerary['end_time'] ?? null,
+                    'notes' => $itinerary['notes'] ?? null,
+                ]);
+            }
+        }
+
         // Create price in prices table
         $tour->prices()->create([
             'date' => now(),
@@ -221,7 +265,7 @@ class TourController extends Controller
         ]);
 
         // Load relationships and transform response
-        $tour->load(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features']);
+        $tour->load(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features', 'itineraries']);
         $tour->category = $tour->travelType?->name;
         unset($tour->travelType, $tour->features);
 
@@ -265,6 +309,17 @@ class TourController extends Controller
                 'availabilities.*.max_guests' => 'required|integer|min:1',
                 'availabilities.*.available_slots' => 'required|integer|min:0',
                 'availabilities.*.is_active' => 'required|boolean',
+                'itineraries' => 'nullable|array',
+                'itineraries.*.id' => 'nullable|exists:itineraries,id',
+                'itineraries.*.day' => 'required|integer|min:1',
+                'itineraries.*.title' => 'required|string|max:255',
+                'itineraries.*.description' => 'nullable|string',
+                'itineraries.*.activities' => 'nullable|array',
+                'itineraries.*.accommodation' => 'nullable|string',
+                'itineraries.*.meals' => 'nullable|string',
+                'itineraries.*.start_time' => 'nullable|date_format:H:i',
+                'itineraries.*.end_time' => 'nullable|date_format:H:i',
+                'itineraries.*.notes' => 'nullable|string',
             ]);
 
             // Custom validation for available_slots <= max_guests
@@ -319,6 +374,33 @@ class TourController extends Controller
             );
         }
 
+        // Handle itineraries
+        if (isset($validated['itineraries'])) {
+            $existingItineraryIds = $tour->itineraries->pluck('id')->toArray();
+            $newItineraryIds = array_filter(array_column($validated['itineraries'], 'id'));
+
+            // Delete removed itineraries
+            $tour->itineraries()->whereNotIn('id', $newItineraryIds)->delete();
+
+            // Update or create itineraries
+            foreach ($validated['itineraries'] as $itinerary) {
+                $tour->itineraries()->updateOrCreate(
+                    ['id' => $itinerary['id'] ?? null, 'tour_id' => $tour->id],
+                    [
+                        'day' => $itinerary['day'],
+                        'title' => $itinerary['title'],
+                        'description' => $itinerary['description'] ?? null,
+                        'activities' => $itinerary['activities'] ?? null,
+                        'accommodation' => $itinerary['accommodation'] ?? null,
+                        'meals' => $itinerary['meals'] ?? null,
+                        'start_time' => $itinerary['start_time'] ?? null,
+                        'end_time' => $itinerary['end_time'] ?? null,
+                        'notes' => $itinerary['notes'] ?? null,
+                    ]
+                );
+            }
+        }
+
         // Handle price update
         $latestPrice = $tour->prices()->orderBy('date', 'desc')->first();
         if ($latestPrice && $latestPrice->price == $validated['price']) {
@@ -351,7 +433,7 @@ class TourController extends Controller
         }
 
         // Load relationships and transform response
-        $tour->load(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features']);
+        $tour->load(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features', 'itineraries']);
         $tour->category = $tour->travelType?->name;
         unset($tour->travelType, $tour->features);
 
