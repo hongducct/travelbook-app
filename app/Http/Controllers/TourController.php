@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tour;
 use App\Models\TourImage;
+use App\Models\ItineraryImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -187,11 +188,14 @@ class TourController extends Controller
                 'itineraries.*.title' => 'required|string|max:255',
                 'itineraries.*.description' => 'nullable|string',
                 'itineraries.*.activities' => 'nullable|array',
+                'itineraries.*.activities.*' => 'string',
                 'itineraries.*.accommodation' => 'nullable|string',
                 'itineraries.*.meals' => 'nullable|string',
                 'itineraries.*.start_time' => 'nullable|date_format:H:i',
                 'itineraries.*.end_time' => 'nullable|date_format:H:i',
                 'itineraries.*.notes' => 'nullable|string',
+                'itineraries.*.images' => 'nullable|array',
+                'itineraries.*.images.*.image_path' => 'required|url',
             ]);
 
             // Custom validation for available_slots <= max_guests
@@ -199,6 +203,16 @@ class TourController extends Controller
                 if ($availability['available_slots'] > $availability['max_guests']) {
                     $validator = Validator::make($request->all(), []);
                     $validator->errors()->add("availabilities.$index.available_slots", "The availabilities.$index.available_slots must be less than or equal to max guests.");
+                    throw new \Illuminate\Validation\ValidationException($validator);
+                }
+            }
+
+            // Custom validation for itinerary days <= tour days
+            if (!empty($request->itineraries)) {
+                $maxDay = max(array_column($request->itineraries, 'day'));
+                if ($maxDay > $request->days) {
+                    $validator = Validator::make($request->all(), []);
+                    $validator->errors()->add('itineraries', 'Itinerary day cannot exceed tour days.');
                     throw new \Illuminate\Validation\ValidationException($validator);
                 }
             }
@@ -241,10 +255,10 @@ class TourController extends Controller
             ]);
         }
 
-        // Create itineraries
+        // Create itineraries and their images
         if (!empty($validated['itineraries'])) {
             foreach ($validated['itineraries'] as $itinerary) {
-                $tour->itineraries()->create([
+                $newItinerary = $tour->itineraries()->create([
                     'day' => $itinerary['day'],
                     'title' => $itinerary['title'],
                     'description' => $itinerary['description'] ?? null,
@@ -255,6 +269,15 @@ class TourController extends Controller
                     'end_time' => $itinerary['end_time'] ?? null,
                     'notes' => $itinerary['notes'] ?? null,
                 ]);
+
+                // Create itinerary images
+                if (!empty($itinerary['images'])) {
+                    foreach ($itinerary['images'] as $image) {
+                        $newItinerary->images()->create([
+                            'image_path' => $image['image_path'],
+                        ]);
+                    }
+                }
             }
         }
 
@@ -265,7 +288,17 @@ class TourController extends Controller
         ]);
 
         // Load relationships and transform response
-        $tour->load(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features', 'itineraries']);
+        $tour->load([
+            'travelType',
+            'location',
+            'vendor',
+            'images',
+            'availabilities',
+            'features',
+            'itineraries' => function ($query) {
+                $query->with('images');
+            },
+        ]);
         $tour->category = $tour->travelType?->name;
         unset($tour->travelType, $tour->features);
 
@@ -315,18 +348,32 @@ class TourController extends Controller
                 'itineraries.*.title' => 'required|string|max:255',
                 'itineraries.*.description' => 'nullable|string',
                 'itineraries.*.activities' => 'nullable|array',
+                'itineraries.*.activities.*' => 'string',
                 'itineraries.*.accommodation' => 'nullable|string',
                 'itineraries.*.meals' => 'nullable|string',
                 'itineraries.*.start_time' => 'nullable|date_format:H:i',
                 'itineraries.*.end_time' => 'nullable|date_format:H:i',
                 'itineraries.*.notes' => 'nullable|string',
+                'itineraries.*.images' => 'nullable|array',
+                'itineraries.*.images.*.id' => 'nullable|exists:itinerary_images,id',
+                'itineraries.*.images.*.image_path' => 'required|url',
             ]);
 
             // Custom validation for available_slots <= max_guests
             foreach ($request->availabilities as $index => $availability) {
                 if ($availability['available_slots'] > $availability['max_guests']) {
                     $validator = Validator::make($request->all(), []);
-                    $validator->errors()->add("availabilities.$index.available_slots", "The availabilities.$index.available_slots must be less than or equal to max guests.");
+                    $validator->errors()->add('availabilities.$index.available_slots', 'The availabilities.$index.available_slots must be less than or equal to max guests.');
+                    throw new \Illuminate\Validation\ValidationException($validator);
+                }
+            }
+
+            // Custom validation for itinerary days <= tour days
+            if (!empty($request->itineraries)) {
+                $maxDay = max(array_column($request->itineraries, 'day'));
+                if ($maxDay > $request->days) {
+                    $validator = Validator::make($request->all(), []);
+                    $validator->errors()->add('itineraries', 'Itinerary day cannot exceed tour days.');
                     throw new \Illuminate\Validation\ValidationException($validator);
                 }
             }
@@ -365,7 +412,7 @@ class TourController extends Controller
         // Update or create images
         foreach ($validated['images'] as $image) {
             TourImage::updateOrCreate(
-                ['id' => $image['id'], 'tour_id' => $tour->id],
+                ['id' => $image['id'] ?? null, 'tour_id' => $tour->id],
                 [
                     'image_url' => $image['image_url'],
                     'caption' => $image['caption'],
@@ -384,7 +431,7 @@ class TourController extends Controller
 
             // Update or create itineraries
             foreach ($validated['itineraries'] as $itinerary) {
-                $tour->itineraries()->updateOrCreate(
+                $newItinerary = $tour->itineraries()->updateOrCreate(
                     ['id' => $itinerary['id'] ?? null, 'tour_id' => $tour->id],
                     [
                         'day' => $itinerary['day'],
@@ -398,6 +445,25 @@ class TourController extends Controller
                         'notes' => $itinerary['notes'] ?? null,
                     ]
                 );
+
+                // Handle itinerary images
+                if (isset($itinerary['images'])) {
+                    $existingImageIds = $newItinerary->images->pluck('id')->toArray();
+                    $newImageIds = array_filter(array_column($itinerary['images'], 'id'));
+
+                    // Delete removed images
+                    ItineraryImage::where('itinerary_id', $newItinerary->id)
+                        ->whereNotIn('id', $newImageIds)
+                        ->delete();
+
+                    // Update or create images
+                    foreach ($itinerary['images'] as $image) {
+                        ItineraryImage::updateOrCreate(
+                            ['id' => $image['id'] ?? null, 'itinerary_id' => $newItinerary->id],
+                            ['image_path' => $image['image_path']]
+                        );
+                    }
+                }
             }
         }
 
@@ -422,7 +488,7 @@ class TourController extends Controller
         // Update or create availabilities
         foreach ($validated['availabilities'] as $availability) {
             $tour->availabilities()->updateOrCreate(
-                ['id' => $availability['id'], 'tour_id' => $tour->id],
+                ['id' => $availability['id'] ?? null, 'tour_id' => $tour->id],
                 [
                     'date' => $availability['date'],
                     'max_guests' => $availability['max_guests'],
@@ -433,7 +499,17 @@ class TourController extends Controller
         }
 
         // Load relationships and transform response
-        $tour->load(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features', 'itineraries']);
+        $tour->load([
+            'travelType',
+            'location',
+            'vendor',
+            'images',
+            'availabilities',
+            'features',
+            'itineraries' => function ($query) {
+                $query->with('images');
+            },
+        ]);
         $tour->category = $tour->travelType?->name;
         unset($tour->travelType, $tour->features);
 
