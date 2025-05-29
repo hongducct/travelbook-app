@@ -42,7 +42,7 @@ class User extends Authenticatable
     public function wishlist()
     {
         return $this->hasMany(Favorite::class)
-            ->where('favoritable_type', 'App\\Models\\Tour')
+            // ->where('favoritable_type', 'App\\Models\\Tour')
             ->with('favoritable');
     }
 

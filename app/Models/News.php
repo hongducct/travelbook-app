@@ -35,7 +35,14 @@ class News extends Model
     {
         return $this->belongsTo(Vendor::class);
     }
-
+    public function favorites()
+    {
+        return $this->morphMany(Favorite::class, 'favoritable');
+    }
+    public function reviews()
+    {
+        return $this->morphMany(Review::class, 'reviewable');
+    }
     const STATUS_DRAFT = 'draft';
     const STATUS_PENDING = 'pending';
     const STATUS_REJECTED = 'rejected';

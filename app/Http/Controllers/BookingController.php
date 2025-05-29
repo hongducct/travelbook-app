@@ -27,9 +27,9 @@ class BookingController extends Controller
         $user = $request->user();
 
         if ($user->getTable() === 'admins') {
-            $bookings = Booking::with(['user', 'bookable', 'payment', 'voucher'])->get();
+            $bookings = Booking::with(['user', 'bookable', 'bookable.primaryImage',  'payment', 'voucher'])->get();
         } elseif ($user->getTable() === 'users') {
-            $bookings = Booking::with(['user', 'bookable', 'payment', 'voucher'])
+            $bookings = Booking::with(['user', 'bookable', 'bookable.primaryImage', 'payment', 'voucher'])
                 ->where('user_id', $user->id)
                 ->get();
         } else {
@@ -42,7 +42,7 @@ class BookingController extends Controller
     public function show(Request $request, $id)
     {
         $user = $request->user();
-        $booking = Booking::with(['user', 'bookable', 'payment', 'voucher'])->findOrFail($id);
+        $booking = Booking::with(['user', 'bookable', 'bookable.primaryImage', 'payment', 'voucher', 'voucherUsage'])->findOrFail($id);
 
         if ($user->getTable() === 'admins') {
             return response()->json($booking, 200);
@@ -56,6 +56,18 @@ class BookingController extends Controller
     public function store(StoreBookingRequest $request)
     {
         return DB::transaction(function () use ($request) {
+            // Log request data
+            Log::info('Booking request received', [
+                'user_id' => auth()->id(),
+                'tour_id' => $request->tour_id,
+                'start_date' => $request->start_date,
+                'number_of_guests_adults' => $request->number_of_guests_adults,
+                'number_of_children' => $request->number_of_children,
+                'voucher_code' => $request->voucher_code,
+                'special_requests' => $request->special_requests,
+                'contact_phone' => $request->contact_phone,
+                'payment_method' => $request->payment_method,
+            ]);
             try {
                 $tour = Tour::findOrFail($request->tour_id);
                 $startDate = $request->start_date;
@@ -92,7 +104,7 @@ class BookingController extends Controller
 
                 // Lấy giá tour
                 $price = Price::where('tour_id', $tour->id)
-                    ->where('date', '<=', $startDate)
+                    // ->where('date', '<=', $startDate)
                     ->orderBy('date', 'desc')
                     ->first()?->price ?? $tour->price;
 
@@ -124,7 +136,10 @@ class BookingController extends Controller
                         return response()->json(['message' => 'Mã voucher không hợp lệ hoặc đã hết hạn.'], 422);
                     }
 
-                    $applicableTourIds = json_decode($voucher->applicable_tour_ids, true) ?? [];
+                    // $applicableTourIds = json_decode($voucher->applicable_tour_ids, true) ?? [];
+                    $applicableTourIds = is_array($voucher->applicable_tour_ids)
+                        ? $voucher->applicable_tour_ids
+                        : (json_decode($voucher->applicable_tour_ids, true) ?? []);
                     if (!empty($applicableTourIds) && !in_array($tour->id, $applicableTourIds)) {
                         Log::warning('Booking failed: Voucher not applicable', [
                             'voucher_code' => $voucherCode,

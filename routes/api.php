@@ -55,7 +55,6 @@ Route::post('/admin/login', [AdminController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admins', [AdminController::class, 'index']);
     Route::post('/admins', [AdminController::class, 'store']);
-        // admin profile
     Route::get('/admin/profile', [AdminController::class, 'profile']);
     // Các route admin khác...
 });
@@ -71,12 +70,16 @@ Route::apiResource('users', UserController::class); // Bảo vệ tất cả cá
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/logout', [UserController::class, 'logout']);
     Route::get('/user/profile', [UserController::class, 'profile']);
-    
+    Route::put('/user/profile', [UserController::class, 'update'])->name('user.profile.update');
+
     // Booking routes
     Route::apiResource('bookings', BookingController::class); // Di chuyển bookings vào nhóm auth
     Route::patch('/bookings/{id}/status', [BookingController::class, 'updateStatus']);
 
+    Route::get('/vouchers/statistics', [VoucherController::class, 'statistics']);
+    Route::post('/vouchers/{id}/toggle', [VoucherController::class, 'toggle']);
     Route::post('/vouchers/apply', [VoucherController::class, 'apply']);
+    Route::apiResource('vouchers', VoucherController::class);
 
     Route::get('/payments/{id}', [PaymentController::class, 'show']);
     Route::patch('/payments/{id}/status', [PaymentController::class, 'updateStatus']);

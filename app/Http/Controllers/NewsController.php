@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\News;
 use App\Models\Vendor;
 use App\Http\Resources\NewsResource;
+use App\Http\Resources\ReviewResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class NewsController extends Controller
 {
@@ -99,10 +101,30 @@ class NewsController extends Controller
     public function index(Request $request)
     {
         try {
-            $perPage = $request->query('per_page', 10);
-            $status = $request->query('status');
+            $perPage = $request->input('perPage', 10); // Align with TourController
+            $search = $request->input('search');
+            $status = $request->input('status');
+            $featured = $request->input('featured');
 
-            $query = News::with(['vendor.user', 'admin']);
+            $query = News::with([
+                'vendor.user',
+                'admin',
+                'reviews' => function ($query) {
+                    $query->where('status', 'approved')->with('user:id,username,avatar');
+                },
+            ]);
+
+            // Add search functionality
+            if ($search) {
+                $query->where('title', 'like', '%' . $search . '%');
+            }
+
+            // Add option to get featured news (most reviewed)
+            if ($featured) {
+                $query->withCount(['reviews' => function ($query) {
+                    $query->where('status', 'approved');
+                }])->orderBy('reviews_count', 'desc');
+            }
 
             // Kiểm tra quyền truy cập
             $isAdmin = Auth::guard('admin-token')->check();
@@ -110,7 +132,6 @@ class NewsController extends Controller
 
             if ($isAdmin) {
                 // Admin có thể xem tất cả blog
-                // Không cần filter gì thêm
             } elseif ($isVendor) {
                 // Vendor chỉ được xem:
                 // 1. Blog published của tất cả mọi người
@@ -127,7 +148,6 @@ class NewsController extends Controller
                             });
                     });
                 } else {
-                    // Nếu không phải vendor, chỉ xem published
                     $query->where('blog_status', 'published');
                 }
             } else {
@@ -141,6 +161,18 @@ class NewsController extends Controller
             }
 
             $news = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+            // Transform the response
+            $news->getCollection()->transform(function ($newsItem) {
+                // Get average rating and review count
+                $newsItem->average_rating = $newsItem->reviews->avg('rating') ?? 0;
+                $newsItem->review_count = $newsItem->reviews->count();
+
+                // Transform reviews using ReviewResource
+                $newsItem->reviews = ReviewResource::collection($newsItem->reviews);
+
+                return $newsItem;
+            });
 
             return NewsResource::collection($news);
         } catch (\Exception $e) {
@@ -184,10 +216,24 @@ class NewsController extends Controller
                 ], 403);
             }
 
-            return new NewsResource($news->load(['vendor.user', 'admin']));
+            // Load relationships including approved reviews
+            $news->load([
+                'vendor.user',
+                'admin',
+                'reviews' => function ($query) {
+                    $query->where('status', 'approved')->with('user:id,username,avatar');
+                },
+            ]);
+
+            // Transform the news item
+            $news->average_rating = $news->reviews->avg('rating') ?? 0;
+            $news->review_count = $news->reviews->count();
+            $news->reviews = ReviewResource::collection($news->reviews);
+
+            return new NewsResource($news);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Không tìm thấy blog'
+                'message' => 'Không tìm thấy blog: ' . $e->getMessage()
             ], 404);
         }
     }
@@ -245,6 +291,9 @@ class NewsController extends Controller
                 'image',
                 'published_at'
             ]);
+
+            // Log ra dữ liệu cập nhật
+            Log::info('Cập nhật blog với dữ liệu: ', $updateData);
 
             // Xử lý blog_status với phân quyền
             if ($request->has('blog_status')) {

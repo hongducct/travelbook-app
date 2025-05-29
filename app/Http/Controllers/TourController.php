@@ -8,6 +8,7 @@ use App\Models\ItineraryImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Http\Resources\ReviewResource;
 
 class TourController extends Controller
 {
@@ -20,7 +21,17 @@ class TourController extends Controller
         $search = $request->input('search');
         $featured = $request->input('featured');
 
-        $query = Tour::with(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features']);
+        $query = Tour::with([
+            'travelType',
+            'location',
+            'vendor',
+            'images',
+            'availabilities',
+            'features',
+            'reviews' => function ($query) {
+                $query->where('status', 'approved')->with('user:id,username,avatar');
+            },
+        ]);
 
         // Add search functionality
         if ($search) {
@@ -37,32 +48,31 @@ class TourController extends Controller
 
         // Add option to get featured tours (most booked/reviewed)
         if ($featured) {
-            // Example: Get tours with most reviews
             $query->withCount('reviews')
                 ->orderBy('reviews_count', 'desc');
         }
+
+        // Order by latest (descending)
+        $query->orderBy('id', 'desc');
 
         $tours = $query->paginate($perPage);
 
         // Transform the response
         $tours->getCollection()->transform(function ($tour) {
             // Get latest price
-            $latestPrice = $tour->prices()->orderBy('date', 'desc')->first();
-            $tour->price = $latestPrice?->price;
+            $tour->price = $tour->prices()->orderBy('date', 'desc')->first()?->price;
 
             // Get travel type as category
             $tour->category = $tour->travelType?->name;
 
-            // Get average rating
-            $avgRating = $tour->reviews()->where('status', 'approved')->avg('rating');
-            $tour->average_rating = $avgRating;
+            // Get average rating and review count
+            $tour->average_rating = $tour->reviews->avg('rating') ?? 0;
+            $tour->review_count = $tour->reviews->count();
 
-            // Get review count
-            $reviewCount = $tour->reviews()->where('status', 'approved')->count();
-            $tour->review_count = $reviewCount;
+            // Transform reviews using ReviewResource
+            $tour->reviews = ReviewResource::collection($tour->reviews);
 
-            unset($tour->prices);
-            unset($tour->travelType);
+            unset($tour->prices, $tour->travelType);
 
             return $tour;
         });
@@ -88,21 +98,22 @@ class TourController extends Controller
             'reviews' => function ($query) {
                 $query->where('status', 'approved')
                     ->with('user:id,username,avatar');
-            }
+            },
         ])->findOrFail($id);
 
         // Get latest price
-        $latestPrice = $tour->prices()->orderBy('date', 'desc')->first();
-        $tour->price = $latestPrice ? $latestPrice->price : null;
+        $tour->price = $tour->prices()->orderBy('date', 'desc')->first()?->price;
 
         // Get travel type as category
         $tour->category = $tour->travelType?->name;
 
         // Calculate average rating
-        $tour->average_rating = $tour->reviews->avg('rating');
+        $tour->average_rating = $tour->reviews->avg('rating') ?? 0;
 
-        unset($tour->prices);
-        unset($tour->travelType);
+        // Transform reviews using ReviewResource
+        $tour->reviews = ReviewResource::collection($tour->reviews);
+
+        unset($tour->prices, $tour->travelType);
 
         return response()->json($tour);
     }
@@ -115,11 +126,11 @@ class TourController extends Controller
         $tour = Tour::findOrFail($tourId);
         $reviews = $tour->reviews()
             ->where('status', 'approved')
-            ->with('user:id,name,avatar')
+            ->with('user:id,username,avatar')
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
-        return response()->json($reviews);
+        return ReviewResource::collection($reviews);
     }
 
     /**
@@ -298,8 +309,13 @@ class TourController extends Controller
             'itineraries' => function ($query) {
                 $query->with('images');
             },
+            'reviews' => function ($query) {
+                $query->where('status', 'approved')->with('user:id,username,avatar');
+            },
         ]);
         $tour->category = $tour->travelType?->name;
+        $tour->average_rating = $tour->reviews->avg('rating') ?? 0;
+        $tour->reviews = ReviewResource::collection($tour->reviews);
         unset($tour->travelType, $tour->features);
 
         return response()->json($tour, 201);
@@ -509,8 +525,13 @@ class TourController extends Controller
             'itineraries' => function ($query) {
                 $query->with('images');
             },
+            'reviews' => function ($query) {
+                $query->where('status', 'approved')->with('user:id,username,avatar');
+            },
         ]);
         $tour->category = $tour->travelType?->name;
+        $tour->average_rating = $tour->reviews->avg('rating') ?? 0;
+        $tour->reviews = ReviewResource::collection($tour->reviews);
         unset($tour->travelType, $tour->features);
 
         return response()->json($tour);

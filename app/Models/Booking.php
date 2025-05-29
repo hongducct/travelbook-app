@@ -45,4 +45,9 @@ class Booking extends Model
     {
         return $this->belongsTo(Voucher::class);
     }
+    // voucher_usage
+    public function voucherUsage()
+    {
+        return $this->hasOne(VoucherUsage::class);
+    }
 }

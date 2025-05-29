@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Validator;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule; // Import Rule class
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -80,63 +82,36 @@ class UserController extends Controller
         return new UserResource($user);
     }
 
-    public function update(Request $request, User $user)
+    public function update(Request $request)
     {
+        // Lấy user từ token (người dùng đang đăng nhập)
+        $user = $request->user();
+        // in ra tất cả thông tin gửi lên
+        Log::info('Update User Request Data:', $request->all());
         $rules = [];
 
+        // Password update validation
         if ($request->has('current_password')) {
             $rules['current_password'] = 'required|string';
             $rules['password'] = 'required|string|min:8|confirmed';
             $rules['password_confirmation'] = 'required|string|min:8';
-        } else {
-            if ($request->has('username')) {
-                $rules['username'] = ['required', 'string', 'max:255', Rule::unique('users')->ignore($user->id)];
-            }
-
-            if ($request->has('email')) {
-                $rules['email'] = ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)];
-            }
-
-            if ($request->has('first_name')) {
-                $rules['first_name'] = 'required|string|max:255';
-            }
-
-            if ($request->has('last_name')) {
-                $rules['last_name'] = 'required|string|max:255';
-            }
-
-            if ($request->has('phone_number')) {
-                $rules['phone_number'] = ['required', 'string', 'regex:/^[0-9]+$/', 'max:20'];
-            }
-
-            if ($request->has('date_of_birth')) {
-                $rules['date_of_birth'] = 'nullable|date';
-            }
-
-            if ($request->has('description')) {
-                $rules['description'] = 'nullable|string';
-            }
-
-            if ($request->has('avatar')) {
-                $rules['avatar'] = 'nullable|string';
-            }
-
-            if ($request->has('address')) {
-                $rules['address'] = 'nullable|string';
-            }
-
-            if ($request->has('is_vendor')) {
-                $rules['is_vendor'] = 'nullable|boolean';
-            }
-
-            if ($request->has('gender')) {
-                $rules['gender'] = 'nullable|string|in:male,female,other';
-            }
-
-            if ($request->has('user_status')) {
-                $rules['user_status'] = 'nullable|string|in:active,inactive,banned';
-            }
         }
+
+        // Profile fields validation
+        $rules = array_merge($rules, [
+            'username' => ['sometimes', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user->id)],
+            'email' => ['sometimes', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'first_name' => 'sometimes|string|max:255',
+            'last_name' => 'sometimes|string|max:255',
+            'phone_number' => ['sometimes', 'string', 'regex:/^[\+0-9\-()\s]*$/', 'max:20', 'nullable'],
+            'date_of_birth' => 'sometimes|date|nullable',
+            'description' => 'sometimes|string|nullable',
+            'avatar' => 'sometimes|string|nullable',
+            'address' => 'sometimes|string|nullable',
+            'gender' => ['sometimes', 'nullable', Rule::in(['male', 'female', 'other'])],
+            'is_vendor' => 'sometimes|boolean',
+            'user_status' => ['sometimes', Rule::in(['active', 'inactive', 'banned'])],
+        ]);
 
         $validator = Validator::make($request->all(), $rules);
 
@@ -144,14 +119,26 @@ class UserController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $data = $request->all();
+        $data = $request->only([
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'phone_number',
+            'date_of_birth',
+            'description',
+            'avatar',
+            'address',
+            'gender',
+            'is_vendor',
+            'user_status',
+        ]);
 
-        if (array_key_exists('current_password', $data)) {
-            if (!Hash::check($data['current_password'], $user->password)) {
-                return response()->json(['errors' => ['current_password' => ['Mật khẩu hiện tại không đúng.']]], 422);
+        if ($request->has('current_password')) {
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json(['errors' => ['current_password' => ['Current password is incorrect.']]], 422);
             }
-            $data['password'] = Hash::make($data['password']);
-            unset($data['current_password'], $data['password_confirmation']);
+            $data['password'] = Hash::make($request->password);
         }
 
         $user->update($data);

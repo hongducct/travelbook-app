@@ -30,6 +30,9 @@ class NewsResource extends JsonResource
             'title' => $this->title,
             'content' => $this->content,
             'image_url' => $this->image,
+            'average_rating' => $this->average_rating ?? 0,
+            'review_count' => $this->review_count ?? 0,
+            'reviews' => ReviewResource::collection($this->whenLoaded('reviews')),
             'published_at' => $this->when($this->published_at, fn() => $this->published_at instanceof \Carbon\Carbon
                 ? $this->published_at->format('Y-m-d H:i:s')
                 : $this->published_at),

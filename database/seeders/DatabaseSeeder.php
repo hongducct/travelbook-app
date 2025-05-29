@@ -36,6 +36,7 @@ class DatabaseSeeder extends Seeder
             VoucherUsageSeeder::class, // Add VoucherUsage seeder
             ReviewsTableSeeder::class,
             FeatureTableSeeder::class,
+            ItinerarySeeder::class, // Add Itinerary seeder
         ]);
     }
 }

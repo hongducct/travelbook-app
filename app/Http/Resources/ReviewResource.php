@@ -3,6 +3,8 @@
 namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Models\Tour;
+use App\Models\News;
 
 class ReviewResource extends JsonResource
 {
@@ -14,17 +16,22 @@ class ReviewResource extends JsonResource
      */
     public function toArray($request)
     {
+        $reviewableData = $this->reviewable ? $this->formatReviewable($this->reviewable) : null;
+
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
+            'booking_id' => $this->booking_id,
             'reviewable_type' => $this->reviewable_type,
             'reviewable_id' => $this->reviewable_id,
+            'title' => $this->title,
             'rating' => $this->rating,
             'comment' => $this->comment,
             'status' => $this->status,
+            'replied_at' => $this->replied_at ? $this->replied_at->toDateTimeString() : null,
             'created_at' => $this->created_at->toDateTimeString(),
             'updated_at' => $this->updated_at->toDateTimeString(),
-            'user' => [
+            'user' => $this->user ? [
                 'id' => $this->user->id,
                 'username' => $this->user->username,
                 'email' => $this->user->email,
@@ -38,22 +45,61 @@ class ReviewResource extends JsonResource
                 'gender' => $this->user->gender,
                 'is_vendor' => $this->user->is_vendor,
                 'user_status' => $this->user->user_status,
-                'created_at' => $this->user->created_at->toDateTimeString(),
-                'updated_at' => $this->user->updated_at->toDateTimeString(),
-            ],
-            'reviewable' => [
-                'id' => $this->reviewable->id,
-                'vendor_id' => $this->reviewable->vendor_id,
-                'location_id' => $this->reviewable->location_id,
-                'name' => $this->reviewable->name,
-                'description' => $this->reviewable->description,
-                'days' => $this->reviewable->days,
-                'nights' => $this->reviewable->nights,
-                'category' => $this->reviewable->category,
-                'features' => $this->reviewable->features,
-                'created_at' => $this->reviewable->created_at->toDateTimeString(),
-                'updated_at' => $this->reviewable->updated_at->toDateTimeString(),
-            ],
+                // 'created_at' => $this->user->created_at->toDateTimeString(),
+                // 'updated_at' => $this->user->updated_at->toDateTimeString(),
+            ] : null,
+            'reviewable' => $reviewableData,
         ];
+    }
+
+    /**
+     * Format reviewable data based on its type.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $reviewable
+     * @return array|null
+     */
+    private function formatReviewable($reviewable)
+    {
+        if ($reviewable instanceof Tour) {
+            return [
+                'id' => $reviewable->id,
+                'vendor_id' => $reviewable->vendor_id,
+                'location_id' => $reviewable->location_id,
+                'name' => $reviewable->name,
+                'description' => $reviewable->description,
+                'days' => $reviewable->days,
+                'nights' => $reviewable->nights,
+                'category' => $reviewable->travelType?->name,
+                'features' => $reviewable->features,
+                'type' => 'tour',
+                'created_at' => $reviewable->created_at->toDateTimeString(),
+                'updated_at' => $reviewable->updated_at->toDateTimeString(),
+            ];
+        } elseif ($reviewable instanceof News) {
+            return [
+                'id' => $reviewable->id,
+                'vendor_id' => $reviewable->vendor_id,
+                'name' => $reviewable->name,
+                'description' => $this->getExcerpt($reviewable->content),
+                'type' => 'blog',
+                'created_at' => $reviewable->created_at->toDateTimeString(),
+                'updated_at' => $reviewable->updated_at->toDateTimeString(),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Create excerpt for blog content.
+     *
+     * @param  string|null  $content
+     * @return string
+     */
+    private function getExcerpt($content)
+    {
+        if (!$content) return '';
+        $plainText = strip_tags($content);
+        return strlen($plainText) > 150 ? substr($plainText, 0, 150) . '...' : $plainText;
     }
 }
