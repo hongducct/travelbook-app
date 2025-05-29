@@ -26,7 +26,10 @@ class TourController extends Controller
             'location',
             'vendor',
             'images',
-            'availabilities',
+            'availabilities' => function ($query) {
+                $query->where('date', '>=', now()->toDateString())
+                    ->where('is_active', true);
+            },
             'features',
             'reviews' => function ($query) {
                 $query->where('status', 'approved')->with('user:id,username,avatar');
@@ -90,7 +93,11 @@ class TourController extends Controller
             'location',
             'vendor',
             'images',
-            'availabilities',
+            'availabilities' => function ($query) {
+                $query->where('date', '>=', now()->toDateString())
+                    ->where('is_active', true)
+                    ->orderBy('date', 'asc');
+            },
             'features',
             'itineraries' => function ($query) {
                 $query->with('images')->orderBy('day');
@@ -156,6 +163,22 @@ class TourController extends Controller
             ->get();
 
         return response()->json($itineraries);
+    }
+
+    /**
+     * Get available dates for a tour (only future dates).
+     */
+    public function getAvailableDates($tourId)
+    {
+        $tour = Tour::findOrFail($tourId);
+        $availabilities = $tour->availabilities()
+            ->where('date', '>=', now()->toDateString())
+            ->where('is_active', true)
+            ->where('available_slots', '>', 0)
+            ->orderBy('date', 'asc')
+            ->get();
+
+        return response()->json($availabilities);
     }
 
     /**
@@ -304,7 +327,10 @@ class TourController extends Controller
             'location',
             'vendor',
             'images',
-            'availabilities',
+            'availabilities' => function ($query) {
+                $query->where('date', '>=', now()->toDateString())
+                    ->where('is_active', true);
+            },
             'features',
             'itineraries' => function ($query) {
                 $query->with('images');
@@ -520,7 +546,10 @@ class TourController extends Controller
             'location',
             'vendor',
             'images',
-            'availabilities',
+            'availabilities' => function ($query) {
+                $query->where('date', '>=', now()->toDateString())
+                    ->where('is_active', true);
+            },
             'features',
             'itineraries' => function ($query) {
                 $query->with('images');

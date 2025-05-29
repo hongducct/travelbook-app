@@ -37,7 +37,9 @@ use App\Http\Controllers\FavoriteController;
 // });
 Route::apiResource('tours', TourController::class);
 Route::get('/tours/{tourId}/prices', [TourController::class, 'getPrices']);
-// Route::apiResource('users', UserController::class);
+Route::get('tours/{tourId}/available-dates', [TourController::class, 'getAvailableDates']);
+Route::get('tours/{tourId}/availabilities', [TourController::class, 'getAvailableDates']);
+
 Route::apiResource('packages', PackageController::class);
 Route::apiResource('locations', LocationController::class)->only(['index', 'store', 'tours']);;
 // Route::get('/locations', [LocationController::class, 'index']);

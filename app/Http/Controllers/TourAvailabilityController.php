@@ -9,11 +9,21 @@ class TourAvailabilityController extends Controller
 {
     public function index(Request $request)
     {
-        $tourId = $request->query('tour_id');
-        $availabilities = TourAvailability::where('tour_id', $tourId)
-            ->where('is_active', true)
-            ->where('available_slots', '>', 0)
-            ->get();
+        $availabilities = TourAvailability::where('is_active', true)
+            ->where('date', '>=', now()->toDateString())
+            ->select('date')
+            ->distinct()
+            ->orderBy('date')
+            ->get()
+            ->map(function ($item) {
+                $tours = TourAvailability::where('date', $item->date)
+                    ->where('is_active', true)
+                    ->pluck('tour_id');
+                return [
+                    'date' => $item->date,
+                    'tour_ids' => $tours,
+                ];
+            });
 
         return response()->json($availabilities);
     }
