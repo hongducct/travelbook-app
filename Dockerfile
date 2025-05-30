@@ -1,28 +1,101 @@
-FROM php:8.2-fpm
+# syntax = docker/dockerfile:experimental
 
-# Cài đặt thư viện cần thiết
-RUN apt-get update && apt-get install -y \
-    nginx git curl zip unzip libpng-dev libonig-dev libxml2-dev libzip-dev libjpeg-dev libfreetype6-dev \
-    && docker-php-ext-install pdo_mysql mbstring zip gd
+# Default to PHP 8.2, but we attempt to match
+# the PHP version from the user (wherever `flyctl launch` is run)
+# Valid version values are PHP 7.4+
+ARG PHP_VERSION=8.2
+ARG NODE_VERSION=18
+FROM fideloper/fly-laravel:${PHP_VERSION} as base
 
-# Cài Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# PHP_VERSION needs to be repeated here
+# See https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact
+ARG PHP_VERSION
 
-# Tạo thư mục làm việc
-WORKDIR /var/www
+LABEL fly_launch_runtime="laravel"
 
-# Copy mã nguồn vào container
+# copy application code, skipping files based on .dockerignore
+COPY . /var/www/html
+
+RUN composer install --optimize-autoloader --no-dev \
+    && mkdir -p storage/logs \
+    && php artisan optimize:clear \
+    && chown -R www-data:www-data /var/www/html \
+    && echo "MAILTO=\"\"\n* * * * * www-data /usr/bin/php /var/www/html/artisan schedule:run" > /etc/cron.d/laravel \
+    && cp .fly/entrypoint.sh /entrypoint \
+    && chmod +x /entrypoint
+
+# Laravel 11 made changes to how trusting all proxies works, see https://laravel.com/docs/11.x/requests#trusting-all-proxies and https://laravel.com/docs/10.x/requests#trusting-all-proxies
+RUN if php artisan --version | grep -q "Laravel Framework 1[1-9]"; then \
+    sed -i='' '/->withMiddleware(function (Middleware \$middleware) {/a\
+        \$middleware->trustProxies(at: "*");\
+' bootstrap/app.php; \
+  else \
+    sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php; \
+fi
+
+# If we're using Octane...
+RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
+        rm -rf /etc/supervisor/conf.d/fpm.conf; \
+        if grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
+            mv /etc/supervisor/octane-rr.conf /etc/supervisor/conf.d/octane-rr.conf; \
+            if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi; \
+            rm -f .rr.yaml; \
+        else \
+            mv .fly/octane-swoole /etc/services.d/octane; \
+            mv /etc/supervisor/octane-swoole.conf /etc/supervisor/conf.d/octane-swoole.conf; \
+        fi; \
+        rm /etc/nginx/sites-enabled/default; \
+        ln -sf /etc/nginx/sites-available/default-octane /etc/nginx/sites-enabled/default; \
+    fi
+
+# Multi-stage build: Build static assets
+# This allows us to not include Node within the final container
+FROM node:${NODE_VERSION} as node_modules_go_brrr
+
+RUN mkdir /app
+
+RUN mkdir -p  /app
+WORKDIR /app
 COPY . .
+COPY --from=base /var/www/html/vendor /app/vendor
 
-# Cài đặt dependencies
-RUN composer install --no-dev --optimize-autoloader
+# Use yarn or npm depending on what type of
+# lock file we might find. Defaults to
+# NPM if no lock file is found.
+# Note: We run "production" for Mix and "build" for Vite
+RUN if [ -f "vite.config.js" ]; then \
+        ASSET_CMD="build"; \
+    else \
+        ASSET_CMD="production"; \
+    fi; \
+    if [ -f "yarn.lock" ]; then \
+        yarn install --frozen-lockfile; \
+        yarn $ASSET_CMD; \
+    elif [ -f "pnpm-lock.yaml" ]; then \
+        corepack enable && corepack prepare pnpm@latest-8 --activate; \
+        pnpm install --frozen-lockfile; \
+        pnpm run $ASSET_CMD; \
+    elif [ -f "package-lock.json" ]; then \
+        npm ci --no-audit; \
+        npm run $ASSET_CMD; \
+    else \
+        npm install; \
+        npm run $ASSET_CMD; \
+    fi;
 
-# Cấp quyền
-RUN chown -R www-data:www-data /var/www \
-    && chmod -R 755 /var/www/storage
+# From our base container created above, we
+# create our final image, adding in static
+# assets that we generated above
+FROM base
 
-# Copy file cấu hình nginx
-COPY docker/nginx.conf /etc/nginx/nginx.conf
+# Packages like Laravel Nova may have added assets to the public directory
+# or maybe some custom assets were added manually! Either way, we merge
+# in the assets we generated above rather than overwrite them
+COPY --from=node_modules_go_brrr /app/public /var/www/html/public-npm
+RUN rsync -ar /var/www/html/public-npm/ /var/www/html/public/ \
+    && rm -rf /var/www/html/public-npm \
+    && chown -R www-data:www-data /var/www/html/public
 
-# Start nginx + php-fpm
-CMD service nginx start && php-fpm
+EXPOSE 8080
+
+ENTRYPOINT ["/entrypoint"]
