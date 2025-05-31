@@ -75,6 +75,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/logout', [UserController::class, 'logout']);
     Route::get('/user/profile', [UserController::class, 'profile']);
     Route::put('/user/profile', [UserController::class, 'update'])->name('user.profile.update');
+    Route::post('user/send-otp', [UserController::class, 'sendOTP']);
 
     // Booking routes
     Route::apiResource('bookings', BookingController::class); // Di chuyển bookings vào nhóm auth

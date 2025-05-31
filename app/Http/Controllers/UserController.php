@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Cache;
 use App\Models\User;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule; // Import Rule class
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class UserController extends Controller
 {
@@ -84,20 +86,20 @@ class UserController extends Controller
 
     public function update(Request $request)
     {
-        // Lấy user từ token (người dùng đang đăng nhập)
         $user = $request->user();
-        // in ra tất cả thông tin gửi lên
         Log::info('Update User Request Data:', $request->all());
         $rules = [];
 
-        // Password update validation
         if ($request->has('current_password')) {
             $rules['current_password'] = 'required|string';
             $rules['password'] = 'required|string|min:8|confirmed';
             $rules['password_confirmation'] = 'required|string|min:8';
+        } elseif ($request->has('otp')) {
+            $rules['otp'] = 'required|string|size:6';
+            $rules['password'] = 'required|string|min:8|confirmed';
+            $rules['password_confirmation'] = 'required|string|min:8';
         }
 
-        // Profile fields validation
         $rules = array_merge($rules, [
             'username' => ['sometimes', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user->id)],
             'email' => ['sometimes', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
@@ -139,6 +141,31 @@ class UserController extends Controller
                 return response()->json(['errors' => ['current_password' => ['Current password is incorrect.']]], 422);
             }
             $data['password'] = Hash::make($request->password);
+        } elseif ($request->has('otp')) {
+            if ($user->password === null) {
+                $storedOtp = Cache::get('otp_' . $user->id);
+                Log::info('Stored OTP for user ' . $user->id . ': ' . $storedOtp);
+                Log::info('Request OTP: ' . $request->otp);
+                Log::info('Type of Stored OTP: ' . gettype($storedOtp));
+                Log::info('Type of Request OTP: ' . gettype($request->otp));
+
+                Log::info('OTP Validation: ' . ($storedOtp ? 'Exists' : 'Does not exist'));
+                // Xem kiểu dữ liệu của storedOtp và request->otp
+                Log::info('Type of storedOtp: ' . gettype($storedOtp));
+                Log::info('Type of request->otp: ' . gettype($request->otp));
+                // log ép kiểu dữ liệu int cho request->otp
+                Log::info('Request OTP after casting to int: ' . (int)$request->otp);
+                Log::info('Type of request->otp after casting to int: ' . gettype((int)$request->otp));
+                if (!$storedOtp || $storedOtp !== (int)$request->otp) {
+                    Log::info('OTP Validation Failed: Stored OTP (' . $storedOtp . ') !== Request OTP (' . $request->otp . ')');
+                    return response()->json(['errors' => ['otp' => ['Invalid or expired OTP.']]], 422);
+                }
+
+                $data['password'] = Hash::make($request->password);
+                Cache::forget('otp_' . $user->id); // Clear OTP after use
+            } else {
+                return response()->json(['errors' => ['general' => ['OTP is not required for users with a password.']]], 422);
+            }
         }
 
         $user->update($data);
@@ -146,6 +173,26 @@ class UserController extends Controller
         return new UserResource($user);
     }
 
+    // Method to send OTP via email
+    public function sendOtp(Request $request)
+    {
+        $user = $request->user();
+        if ($user->password !== null) {
+            return response()->json(['errors' => ['general' => ['OTP is only for Google-authenticated users without a password.']]], 422);
+        }
+
+        $otp = rand(100000, 999999);
+        Cache::put('otp_' . $user->id, $otp, now()->addMinutes(10)); // Store OTP for 10 minutes
+
+        // Log for debugging
+        Log::info('Cache OTP set for user ' . $user->id . ': ' . Cache::get('otp_' . $user->id));
+
+        Mail::raw("Your OTP is $otp. Valid for 10 minutes.", function ($message) use ($user) {
+            $message->to($user->email)->subject('Password Setup OTP');
+        });
+
+        return response()->json(['message' => 'OTP sent to your email.']);
+    }
     public function destroy(User $user)
     {
         $user->delete();
@@ -230,6 +277,7 @@ class UserController extends Controller
             'avatar' => $user->avatar,
             'is_vendor' => $user->is_vendor,
             'user_status' => $user->user_status,
+            'has_password' => $user->password !== null, // Add flag to indicate if user has a password
         ]);
     }
     public function redirectToGoogle()
