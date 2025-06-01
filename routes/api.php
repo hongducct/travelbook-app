@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Http;
 use App\Http\Controllers\TourController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PackageController;
@@ -20,6 +21,8 @@ use App\Http\Controllers\TravelTypeController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\FavoriteController;
+
+use App\Http\Controllers\ChatBotController;
 
 /*
 |--------------------------------------------------------------------------
@@ -50,22 +53,15 @@ Route::apiResource('vendors', VendorController::class);
 Route::apiResource('prices', PriceController::class);
 Route::apiResource('news', NewsController::class);
 Route::apiResource('reviews', ReviewsController::class);
-Route::apiResource('admins', AdminController::class);
 Route::post('/subscribe', [SubscriberController::class, 'subscribe'])->middleware('throttle:10,1');
 Route::get('/subscribers', [SubscriberController::class, 'index'])->middleware('auth:admin-token');
 Route::delete('/subscribers/{id}', [SubscriberController::class, 'destroy'])->middleware('auth:admin-token');
-// api login for admin
-Route::post('/admin/login', [AdminController::class, 'login']);
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/admins', [AdminController::class, 'index']);
-    Route::post('/admins', [AdminController::class, 'store']);
-    Route::get('/admin/profile', [AdminController::class, 'profile']);
-    // Các route admin khác...
-});
-// // api login for user
+
 Route::post('/user/login', [UserController::class, 'login']);
-// // api register for user
 Route::post('/user/register', [UserController::class, 'register']);
+Route::post('/auth/forgot-password', [UserController::class, 'forgotPassword']);
+Route::post('/auth/reset-password', [UserController::class, 'resetPassword']);
+Route::post('/auth/verify-reset-otp', [UserController::class, 'verifyResetOtp']);
 Route::get('/auth/google', [UserController::class, 'redirectToGoogle']);
 Route::get('/auth/google/callback', [UserController::class, 'handleGoogleCallback']);
 // // api logout for user
@@ -107,3 +103,58 @@ Route::prefix('admin')->middleware('auth:admin-token')->group(function () {
     Route::get('/bookings', [BookingController::class, 'index']);
     Route::get('/bookings/{id}', [BookingController::class, 'show']);
 });
+
+Route::prefix('admin')->group(function () {
+    Route::post('/login', [AdminController::class, 'login']);
+    Route::post('/forgot-password', [AdminController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AdminController::class, 'resetPassword']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/profile', [AdminController::class, 'profile']);
+        Route::put('/profile', [AdminController::class, 'update']);
+        Route::post('/logout', [AdminController::class, 'logout']);
+        Route::post('/request-email-change-otp', [AdminController::class, 'requestEmailChangeOtp']);
+        Route::post('/change-email', [AdminController::class, 'changeEmail']);
+    });
+});
+// api login for admin
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/admins', [AdminController::class, 'index']);
+    Route::post('/admins', [AdminController::class, 'store']);
+    // Các route admin khác...
+});
+
+// Chatbot route
+// Route::post('/chatbot', [ChatBotController::class, 'chat']);
+Route::post('/chatbot/query', [ChatBotController::class, 'processQuery']);
+Route::get('/chatbot/tour/{id}', [ChatBotController::class, 'getTourDetails']);
+
+// Route::post('/chatbot', function (Request $request) {
+//     $response = Http::withToken(env('OPENAI_API_KEY'))
+//         ->post('https://api.openai.com/v1/chat/completions', [
+//             'model' => 'gpt-3.5-turbo',
+//             'messages' => $request->input('messages')
+//         ]);
+
+//     return $response->json();
+// });
+
+// Route::post('/chatbot', function (Request $request) {
+//     $messages = $request->input('messages');
+
+//     $response = Http::withHeaders([
+//         'Authorization' => 'Bearer ' . env('OPENROUTER_API_KEY'),
+//         'Content-Type' => 'application/json',
+//     ])->post('https://openrouter.ai/api/v1/chat/completions', [
+//         'model' => 'mistralai/mistral-7b-instruct',
+//         'messages' => $messages,
+//     ]);
+
+//     if ($response->successful()) {
+//         return response()->json($response->json());
+//     } else {
+//         return response()->json([
+//             'error' => 'Chat API error',
+//             'details' => $response->body()
+//         ], $response->status());
+//     }
+// });

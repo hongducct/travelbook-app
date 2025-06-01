@@ -10,13 +10,196 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule; // Import Rule class
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class UserController extends Controller
 {
+    /**
+     * Send forgot password OTP to user's email
+     * Step 1 of password reset process
+     */
+    public function forgotPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Check if email exists in the system
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'errors' => [
+                    'email' => ['Email address not found in our system. Please check your email or register a new account.']
+                ]
+            ], 422);
+        }
+
+        // Generate 6-digit OTP
+        $otp = rand(100000, 999999);
+
+        // Store OTP in cache with 10 minutes expiration
+        $cacheKey = 'forgot_password_otp_' . $user->id;
+        Cache::put($cacheKey, $otp, now()->addMinutes(10));
+
+        // Log for debugging
+        Log::info('Forgot Password OTP generated for user ' . $user->id . ': ' . $otp);
+
+        try {
+            // Send OTP via email
+            Mail::raw("Your password reset verification code is: $otp\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this password reset, please ignore this email.", function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('Password Reset Verification Code');
+            });
+
+            Log::info('Forgot Password OTP email sent successfully to: ' . $user->email);
+
+            return response()->json([
+                'message' => 'Password reset code has been sent to your email address.',
+                'email' => $user->email // Optional: return email for confirmation
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send forgot password email: ' . $e->getMessage());
+
+            // Clean up the OTP from cache if email fails
+            Cache::forget($cacheKey);
+
+            return response()->json([
+                'errors' => [
+                    'general' => ['Failed to send reset code. Please try again later.']
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Reset password using OTP
+     * Step 2 of password reset process
+     */
+    public function resetPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email|max:255',
+            'otp' => 'required|string|size:6',
+            'password' => 'required|string|min:8|confirmed',
+            'password_confirmation' => 'required|string|min:8',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Find user by email
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'errors' => [
+                    'email' => ['Email address not found in our system.']
+                ]
+            ], 422);
+        }
+
+        // Check OTP
+        $cacheKey = 'forgot_password_otp_' . $user->id;
+        $storedOtp = Cache::get($cacheKey);
+
+        Log::info('Password Reset - Stored OTP for user ' . $user->id . ': ' . $storedOtp);
+        Log::info('Password Reset - Request OTP: ' . $request->otp);
+
+        if (!$storedOtp || $storedOtp !== (int)$request->otp) {
+            Log::info('Password Reset - OTP Validation Failed: Stored OTP (' . $storedOtp . ') !== Request OTP (' . $request->otp . ')');
+            return response()->json([
+                'errors' => [
+                    'otp' => ['Invalid or expired verification code. Please request a new one.']
+                ]
+            ], 422);
+        }
+
+        try {
+            // Update user password
+            $user->update([
+                'password' => Hash::make($request->password)
+            ]);
+
+            // Clear OTP from cache
+            Cache::forget($cacheKey);
+
+            Log::info('Password reset successful for user: ' . $user->email);
+
+            // Optional: Send confirmation email
+            try {
+                Mail::raw("Your password has been successfully reset.\n\nIf you didn't make this change, please contact our support team immediately.", function ($message) use ($user) {
+                    $message->to($user->email)
+                        ->subject('Password Reset Confirmation');
+                });
+            } catch (\Exception $e) {
+                Log::warning('Failed to send password reset confirmation email: ' . $e->getMessage());
+                // Don't fail the request if confirmation email fails
+            }
+
+            return response()->json([
+                'message' => 'Password has been reset successfully. You can now login with your new password.'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to reset password: ' . $e->getMessage());
+
+            return response()->json([
+                'errors' => [
+                    'general' => ['Failed to reset password. Please try again later.']
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify OTP without resetting password (optional utility method)
+     */
+    public function verifyResetOtp(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email|max:255',
+            'otp' => 'required|string|size:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'errors' => [
+                    'email' => ['Email address not found in our system.']
+                ]
+            ], 422);
+        }
+
+        $cacheKey = 'forgot_password_otp_' . $user->id;
+        $storedOtp = Cache::get($cacheKey);
+
+        if (!$storedOtp || $storedOtp !== (int)$request->otp) {
+            return response()->json([
+                'errors' => [
+                    'otp' => ['Invalid or expired verification code.']
+                ]
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'OTP verified successfully.',
+            'valid' => true
+        ]);
+    }
+
     public function index(Request $request)
     {
         $perPage = $request->query('per_page', 10);
@@ -36,7 +219,6 @@ class UserController extends Controller
         return UserResource::collection($users);
     }
 
-
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -45,14 +227,14 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'phone_number' => 'required|string|regex:/^[0-9]+$/|max:20', // Updated: Chỉ cho phép số
+            'phone_number' => 'required|string|regex:/^[0-9]+$/|max:20',
             'date_of_birth' => 'nullable|date',
             'description' => 'nullable|string',
             'avatar' => 'nullable|string',
             'address' => 'nullable|string',
             'is_vendor' => 'nullable|boolean',
             'gender' => 'nullable|string|in:male,female,other',
-            'user_status' => 'nullable|string|in:active,inactive,banned', // updated here
+            'user_status' => 'nullable|string|in:active,inactive,banned',
         ]);
 
         if ($validator->fails()) {
@@ -72,9 +254,8 @@ class UserController extends Controller
             'address' => $request->address,
             'is_vendor' => $request->is_vendor ?? false,
             'gender' => $request->gender,
-            'user_status' => $request->user_status ?? 'active', // default active
+            'user_status' => $request->user_status ?? 'active',
         ]);
-        $token = $user->createToken('user-token')->plainTextToken;
 
         return new UserResource($user);
     }
@@ -146,23 +327,14 @@ class UserController extends Controller
                 $storedOtp = Cache::get('otp_' . $user->id);
                 Log::info('Stored OTP for user ' . $user->id . ': ' . $storedOtp);
                 Log::info('Request OTP: ' . $request->otp);
-                Log::info('Type of Stored OTP: ' . gettype($storedOtp));
-                Log::info('Type of Request OTP: ' . gettype($request->otp));
 
-                Log::info('OTP Validation: ' . ($storedOtp ? 'Exists' : 'Does not exist'));
-                // Xem kiểu dữ liệu của storedOtp và request->otp
-                Log::info('Type of storedOtp: ' . gettype($storedOtp));
-                Log::info('Type of request->otp: ' . gettype($request->otp));
-                // log ép kiểu dữ liệu int cho request->otp
-                Log::info('Request OTP after casting to int: ' . (int)$request->otp);
-                Log::info('Type of request->otp after casting to int: ' . gettype((int)$request->otp));
                 if (!$storedOtp || $storedOtp !== (int)$request->otp) {
                     Log::info('OTP Validation Failed: Stored OTP (' . $storedOtp . ') !== Request OTP (' . $request->otp . ')');
                     return response()->json(['errors' => ['otp' => ['Invalid or expired OTP.']]], 422);
                 }
 
                 $data['password'] = Hash::make($request->password);
-                Cache::forget('otp_' . $user->id); // Clear OTP after use
+                Cache::forget('otp_' . $user->id);
             } else {
                 return response()->json(['errors' => ['general' => ['OTP is not required for users with a password.']]], 422);
             }
@@ -173,7 +345,6 @@ class UserController extends Controller
         return new UserResource($user);
     }
 
-    // Method to send OTP via email
     public function sendOtp(Request $request)
     {
         $user = $request->user();
@@ -182,9 +353,8 @@ class UserController extends Controller
         }
 
         $otp = rand(100000, 999999);
-        Cache::put('otp_' . $user->id, $otp, now()->addMinutes(10)); // Store OTP for 10 minutes
+        Cache::put('otp_' . $user->id, $otp, now()->addMinutes(10));
 
-        // Log for debugging
         Log::info('Cache OTP set for user ' . $user->id . ': ' . Cache::get('otp_' . $user->id));
 
         Mail::raw("Your OTP is $otp. Valid for 10 minutes.", function ($message) use ($user) {
@@ -193,6 +363,7 @@ class UserController extends Controller
 
         return response()->json(['message' => 'OTP sent to your email.']);
     }
+
     public function destroy(User $user)
     {
         $user->delete();
@@ -202,7 +373,7 @@ class UserController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'login' => 'required|string', // username hoặc email
+            'login' => 'required|string',
             'password' => 'required|string',
         ]);
 
@@ -210,30 +381,35 @@ class UserController extends Controller
             ->orWhere('email', $request->login)
             ->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+        if (!$user) {
+            return response()->json(['message' => 'Tài khoản không tồn tại (username hoặc email không đúng)'], 404);
         }
 
-        // Nếu dùng Laravel Sanctum hoặc Passport, có thể tạo token ở đây
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json(['message' => 'Mật khẩu không đúng'], 401);
+        }
+
         $token = $user->createToken('user-token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login successful',
+            'message' => 'Đăng nhập thành công',
             'token' => $token,
             'user' => new UserResource($user),
         ]);
     }
+
 
     public function register(Request $request)
     {
         $request->validate([
             'username' => 'required|string|unique:users,username',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6|confirmed', // cần password_confirmation
+            'password' => 'required|string|min:6|confirmed',
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'phone_number' => ['required', 'string', 'regex:/^[0-9]+$/', 'max:20'], // Thêm regex để kiểm tra số
+            'phone_number' => ['required', 'string', 'regex:/^[0-9]+$/', 'max:20'],
         ]);
+
         $avatarUrl = 'https://i.pravatar.cc/300?u=' . uniqid();
 
         $user = User::create([
@@ -243,7 +419,7 @@ class UserController extends Controller
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'phone_number' => $request->phone_number,
-            'avatar' => $avatarUrl, // Lưu URL avatar vào database
+            'avatar' => $avatarUrl,
         ]);
 
         $token = $user->createToken('user-token')->plainTextToken;
@@ -277,9 +453,10 @@ class UserController extends Controller
             'avatar' => $user->avatar,
             'is_vendor' => $user->is_vendor,
             'user_status' => $user->user_status,
-            'has_password' => $user->password !== null, // Add flag to indicate if user has a password
+            'has_password' => $user->password !== null,
         ]);
     }
+
     public function redirectToGoogle()
     {
         return Socialite::driver('google')->stateless()->redirect();
@@ -290,7 +467,6 @@ class UserController extends Controller
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
 
-            // Find or create user
             $user = User::where('email', $googleUser->email)->first();
 
             if (!$user) {
@@ -301,21 +477,15 @@ class UserController extends Controller
                     'last_name' => $googleUser->user['family_name'] ?? 'User',
                     'phone_number' => null,
                     'avatar' => $googleUser->avatar ?? 'https://i.pravatar.cc/300?u=' . uniqid(),
-                    // 'password' => Hash::make(Str::random(16)), // Random password for security
-                    'password' => null, // No password for Google login
+                    'password' => null,
                     'google_id' => $googleUser->id,
                 ]);
             } else {
-                // Update Google ID if not set
                 $user->update(['google_id' => $googleUser->id]);
             }
 
             $token = $user->createToken('user-token')->plainTextToken;
 
-            // Redirect to frontend with token
-            // return redirect()->away(
-            //     env('FRONTEND_URL', 'https://travel-booking.hongducct.id.vn') . '/auth/callback?token=' . $token
-            // );
             return response()->json([
                 'message' => 'Register successful',
                 'token' => $token,

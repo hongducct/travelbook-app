@@ -27,14 +27,27 @@ class BookingController extends Controller
         $user = $request->user();
 
         if ($user->getTable() === 'admins') {
-            $bookings = Booking::with(['user', 'bookable', 'bookable.primaryImage',  'payment', 'voucher'])->get();
+            $bookings = Booking::with(['user', 'bookable', 'bookable.primaryImage', 'bookable.travelType', 'payment', 'voucher'])
+                ->orderBy('id', 'desc')
+                ->get();
         } elseif ($user->getTable() === 'users') {
             $bookings = Booking::with(['user', 'bookable', 'bookable.primaryImage', 'payment', 'voucher'])
                 ->where('user_id', $user->id)
+                ->orderBy('id', 'desc')
                 ->get();
         } else {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
+
+        // Transform bookings to include travel_type_name
+        $bookings = $bookings->map(function ($booking) {
+            $bookingData = $booking->toArray();
+            if (isset($bookingData['bookable']['travel_type'])) {
+                $bookingData['bookable']['travel_type_name'] = $bookingData['bookable']['travel_type']['name'];
+                unset($bookingData['bookable']['travel_type']); // Remove travel_type to avoid redundancy
+            }
+            return $bookingData;
+        });
 
         return response()->json($bookings, 200);
     }
@@ -42,12 +55,32 @@ class BookingController extends Controller
     public function show(Request $request, $id)
     {
         $user = $request->user();
-        $booking = Booking::with(['user', 'bookable', 'bookable.primaryImage', 'payment', 'voucher', 'voucherUsage'])->findOrFail($id);
+        $booking = Booking::with([
+            'user',
+            'bookable',
+            'bookable.primaryImage',
+            'bookable.travelType', // Load travelType relationship
+            'payment',
+            'voucher',
+            'voucherUsage'
+        ])->findOrFail($id);
 
         if ($user->getTable() === 'admins') {
-            return response()->json($booking, 200);
+            // Transform booking to include travel_type_name
+            $bookingData = $booking->toArray();
+            if (isset($bookingData['bookable']['travel_type'])) {
+                $bookingData['bookable']['travel_type_name'] = $bookingData['bookable']['travel_type']['name'];
+                unset($bookingData['bookable']['travel_type']); // Remove travel_type to avoid redundancy
+            }
+            return response()->json($bookingData, 200);
         } elseif ($user->getTable() === 'users' && $booking->user_id == $user->id) {
-            return response()->json($booking, 200);
+            // Transform booking to include travel_type_name
+            $bookingData = $booking->toArray();
+            if (isset($bookingData['bookable']['travel_type'])) {
+                $bookingData['bookable']['travel_type_name'] = $bookingData['bookable']['travel_type']['name'];
+                unset($bookingData['bookable']['travel_type']); // Remove travel_type to avoid redundancy
+            }
+            return response()->json($bookingData, 200);
         } else {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
