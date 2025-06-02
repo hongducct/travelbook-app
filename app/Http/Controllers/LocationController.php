@@ -14,10 +14,37 @@ class LocationController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index(Request $request)
     {
-        $locations = Location::all(); // Return all locations as an array
-        return response()->json(['data' => $locations]);
+        $query = Location::query();
+
+        // Apply filters
+        if ($request->has('country')) {
+            $query->where('country', $request->country);
+        }
+        if ($request->has('city')) {
+            $query->where('city', $request->city);
+        }
+        if ($request->has('search')) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        // Paginate results
+        $locations = $query->paginate(20); // Adjust per_page as needed
+
+        return response()->json([
+            'data' => $locations->items(),
+            'meta' => [
+                'current_page' => $locations->currentPage(),
+                'last_page' => $locations->lastPage(),
+                'total' => $locations->total(),
+                'per_page' => $locations->perPage(),
+            ],
+            'links' => [
+                'next' => $locations->nextPageUrl(),
+                'prev' => $locations->previousPageUrl(),
+            ],
+        ]);
     }
 
     /**
@@ -46,6 +73,32 @@ class LocationController extends Controller
             Log::error('Validation error: ', $e->errors());
             return response()->json(['message' => 'Validation error', 'errors' => $e->errors()], 422);
         }
+    }
+
+    /**
+     * Get tour counts for multiple locations.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function tourCounts(Request $request)
+    {
+        $locationIds = $request->input('location_ids', []);
+
+        // Fetch tour counts for the given location IDs
+        $counts = Tour::whereIn('location_id', $locationIds)
+            ->groupBy('location_id')
+            ->selectRaw('location_id, COUNT(*) as total')
+            ->pluck('total', 'location_id')
+            ->toArray();
+
+        // Ensure all requested location IDs are included, even if they have zero tours
+        $result = array_fill_keys($locationIds, 0);
+        foreach ($counts as $locationId => $total) {
+            $result[$locationId] = $total;
+        }
+
+        return response()->json(['counts' => $result]);
     }
 
     /**

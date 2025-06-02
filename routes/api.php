@@ -47,6 +47,7 @@ Route::apiResource('packages', PackageController::class);
 Route::apiResource('locations', LocationController::class)->only(['index', 'store', 'tours']);;
 // Route::get('/locations', [LocationController::class, 'index']);
 Route::get('/locations/{id}/tours', [LocationController::class, 'tours']);
+Route::post('/locations/tour-counts', [LocationController::class, 'tourCounts']);
 Route::apiResource('travel-types', TravelTypeController::class);
 Route::apiResource('features', FeatureController::class);
 Route::apiResource('vendors', VendorController::class);
