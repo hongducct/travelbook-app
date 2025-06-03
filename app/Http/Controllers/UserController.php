@@ -49,9 +49,6 @@ class UserController extends Controller
         $cacheKey = 'forgot_password_otp_' . $user->id;
         Cache::put($cacheKey, $otp, now()->addMinutes(10));
 
-        // Log for debugging
-        Log::info('Forgot Password OTP generated for user ' . $user->id . ': ' . $otp);
-
         try {
             // Send OTP via email
             Mail::raw("Your password reset verification code is: $otp\n\nThis code will expire in 10 minutes.\n\nIf you didn't request this password reset, please ignore this email.", function ($message) use ($user) {
@@ -59,15 +56,11 @@ class UserController extends Controller
                     ->subject('Password Reset Verification Code');
             });
 
-            Log::info('Forgot Password OTP email sent successfully to: ' . $user->email);
-
             return response()->json([
                 'message' => 'Password reset code has been sent to your email address.',
                 'email' => $user->email // Optional: return email for confirmation
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to send forgot password email: ' . $e->getMessage());
-
             // Clean up the OTP from cache if email fails
             Cache::forget($cacheKey);
 
@@ -111,11 +104,7 @@ class UserController extends Controller
         $cacheKey = 'forgot_password_otp_' . $user->id;
         $storedOtp = Cache::get($cacheKey);
 
-        Log::info('Password Reset - Stored OTP for user ' . $user->id . ': ' . $storedOtp);
-        Log::info('Password Reset - Request OTP: ' . $request->otp);
-
         if (!$storedOtp || $storedOtp !== (int)$request->otp) {
-            Log::info('Password Reset - OTP Validation Failed: Stored OTP (' . $storedOtp . ') !== Request OTP (' . $request->otp . ')');
             return response()->json([
                 'errors' => [
                     'otp' => ['Invalid or expired verification code. Please request a new one.']
@@ -132,8 +121,6 @@ class UserController extends Controller
             // Clear OTP from cache
             Cache::forget($cacheKey);
 
-            Log::info('Password reset successful for user: ' . $user->email);
-
             // Optional: Send confirmation email
             try {
                 Mail::raw("Your password has been successfully reset.\n\nIf you didn't make this change, please contact our support team immediately.", function ($message) use ($user) {
@@ -141,7 +128,6 @@ class UserController extends Controller
                         ->subject('Password Reset Confirmation');
                 });
             } catch (\Exception $e) {
-                Log::warning('Failed to send password reset confirmation email: ' . $e->getMessage());
                 // Don't fail the request if confirmation email fails
             }
 
@@ -149,7 +135,6 @@ class UserController extends Controller
                 'message' => 'Password has been reset successfully. You can now login with your new password.'
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to reset password: ' . $e->getMessage());
 
             return response()->json([
                 'errors' => [
@@ -215,7 +200,7 @@ class UserController extends Controller
             $query->banned();
         }
 
-        $users = $query->paginate($perPage);
+        $users = $query->orderByDesc('id')->paginate($perPage);
         return UserResource::collection($users);
     }
 
@@ -265,10 +250,30 @@ class UserController extends Controller
         return new UserResource($user);
     }
 
+    // change user status
+    public function changeStatus(Request $request, User $user)
+    {   
+        $request->validate([
+            'user_status' => ['required', Rule::in(['active', 'inactive', 'banned'])],
+        ]);
+
+        try {
+            $user->update([
+                'user_status' => $request->user_status,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['errors' => ['general' => ['Failed to update status.']]], 500);
+        }
+
+        return response()->json([
+            'message' => 'User status updated successfully.',
+            'user' => new UserResource($user)
+        ]);
+    }
+
     public function update(Request $request)
     {
         $user = $request->user();
-        Log::info('Update User Request Data:', $request->all());
         $rules = [];
 
         if ($request->has('current_password')) {
@@ -325,11 +330,8 @@ class UserController extends Controller
         } elseif ($request->has('otp')) {
             if ($user->password === null) {
                 $storedOtp = Cache::get('otp_' . $user->id);
-                Log::info('Stored OTP for user ' . $user->id . ': ' . $storedOtp);
-                Log::info('Request OTP: ' . $request->otp);
 
                 if (!$storedOtp || $storedOtp !== (int)$request->otp) {
-                    Log::info('OTP Validation Failed: Stored OTP (' . $storedOtp . ') !== Request OTP (' . $request->otp . ')');
                     return response()->json(['errors' => ['otp' => ['Invalid or expired OTP.']]], 422);
                 }
 
@@ -354,8 +356,6 @@ class UserController extends Controller
 
         $otp = rand(100000, 999999);
         Cache::put('otp_' . $user->id, $otp, now()->addMinutes(10));
-
-        Log::info('Cache OTP set for user ' . $user->id . ': ' . Cache::get('otp_' . $user->id));
 
         Mail::raw("Your OTP is $otp. Valid for 10 minutes.", function ($message) use ($user) {
             $message->to($user->email)->subject('Password Setup OTP');
