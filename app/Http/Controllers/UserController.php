@@ -185,13 +185,18 @@ class UserController extends Controller
         ]);
     }
 
+    // UPDATED: Enhanced index method with search and sorting
     public function index(Request $request)
     {
         $perPage = $request->query('per_page', 10);
         $status = $request->query('status');
+        $search = $request->query('search');
+        $sortBy = $request->query('sort', 'id');
+        $sortOrder = $request->query('order', 'desc');
 
         $query = User::query();
 
+        // Status filtering
         if ($status === 'active') {
             $query->active();
         } elseif ($status === 'inactive') {
@@ -200,7 +205,25 @@ class UserController extends Controller
             $query->banned();
         }
 
-        $users = $query->orderByDesc('id')->paginate($perPage);
+        // Search functionality
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('username', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%")
+                    ->orWhere('first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('last_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Sorting
+        $allowedSortFields = ['id', 'username', 'email', 'created_at', 'updated_at'];
+        if (in_array($sortBy, $allowedSortFields)) {
+            $query->orderBy($sortBy, $sortOrder === 'asc' ? 'asc' : 'desc');
+        } else {
+            $query->orderByDesc('id');
+        }
+
+        $users = $query->paginate($perPage);
         return UserResource::collection($users);
     }
 
@@ -252,7 +275,7 @@ class UserController extends Controller
 
     // change user status
     public function changeStatus(Request $request, User $user)
-    {   
+    {
         $request->validate([
             'user_status' => ['required', Rule::in(['active', 'inactive', 'banned'])],
         ]);
@@ -387,6 +410,29 @@ class UserController extends Controller
 
         if (!Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'Mật khẩu không đúng'], 401);
+        }
+
+        // Kiểm tra trạng thái tài khoản
+        if ($user->user_status === 'inactive') {
+            return response()->json([
+                'message' => 'Tài khoản của bạn đang bị vô hiệu hóa. Vui lòng liên hệ travelbooking@hongducct.id.vn để được hỗ trợ kích hoạt lại tài khoản.',
+                'status' => 'inactive'
+            ], 403);
+        }
+
+        if ($user->user_status === 'banned') {
+            return response()->json([
+                'message' => 'Tài khoản của bạn đã bị khóa do vi phạm điều khoản sử dụng. Vui lòng liên hệ travelbooking@hongducct.id.vn để biết thêm chi tiết và thắc mắc về việc mở khóa tài khoản.',
+                'status' => 'banned'
+            ], 403);
+        }
+
+        // Chỉ cho phép đăng nhập nếu tài khoản active
+        if ($user->user_status !== 'active') {
+            return response()->json([
+                'message' => 'Tài khoản của bạn chưa được kích hoạt. Vui lòng liên hệ travelbooking@hongducct.id.vn để được hỗ trợ.',
+                'status' => $user->user_status
+            ], 403);
         }
 
         $token = $user->createToken('user-token')->plainTextToken;

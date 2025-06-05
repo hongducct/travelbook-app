@@ -29,7 +29,7 @@ class PricesTableSeeder extends Seeder
                     'updated_at' => now(),
                 ]);
                 // Tăng ngày lên 5-10 ngày
-                $startDate->addDays($faker->numberBetween(10, 20));
+                $startDate->addDays($faker->numberBetween(10, 35));
             }
         }
     }

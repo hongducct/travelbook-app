@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             TravelTypesTableSeeder::class, // Add TravelTypes seeder
             ToursTableSeeder::class,
             PricesTableSeeder::class,
+            NewsCategorySeeder::class,  
             NewsTableSeeder::class,
             VouchersTableSeeder::class,
             FavoritesTableSeeder::class,

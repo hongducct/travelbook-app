@@ -31,7 +31,6 @@ class UsersTableSeeder extends Seeder
                 'phone_number' => $faker->phoneNumber,
                 'date_of_birth' => $faker->date,
                 'description' => $faker->sentence,
-                // 'avatar' => $faker->imageUrl(640, 480, 'people', true),
                 'avatar' => $avatarUrl,
                 'address' => $faker->address,
                 'is_vendor' => $faker->boolean(30),

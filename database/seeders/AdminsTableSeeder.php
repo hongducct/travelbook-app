@@ -13,11 +13,11 @@ class AdminsTableSeeder extends Seeder
         $avatarUrl = 'https://i.pravatar.cc/300?u=' . uniqid();
         Admin::create([
             'username' => 'superadmin',
-            'email' => 'superadmin@example.com',
+            'email' => 'travelbooking@hongducct.id.vn',
             'password' => Hash::make('superadmin'),
             'first_name' => 'Super',
             'last_name' => 'Admin',
-            'phone_number' => '1234567890',
+            'phone_number' => '0799076901',
             'avatar' => $avatarUrl,
             'admin_status' => 'active',
         ]);

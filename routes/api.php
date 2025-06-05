@@ -10,6 +10,7 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\PriceController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\NewsCategoryController;
 use App\Http\Controllers\ReviewsController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\TourAvailabilityController;
@@ -44,15 +45,18 @@ Route::get('tours/{tourId}/available-dates', [TourController::class, 'getAvailab
 Route::get('tours/{tourId}/availabilities', [TourController::class, 'getAvailableDates']);
 
 Route::apiResource('packages', PackageController::class);
-Route::apiResource('locations', LocationController::class)->only(['index', 'store', 'tours']);;
-// Route::get('/locations', [LocationController::class, 'index']);
+Route::apiResource('locations', LocationController::class);
 Route::get('/locations/{id}/tours', [LocationController::class, 'tours']);
 Route::post('/locations/tour-counts', [LocationController::class, 'tourCounts']);
+
 Route::apiResource('travel-types', TravelTypeController::class);
 Route::apiResource('features', FeatureController::class);
 Route::apiResource('vendors', VendorController::class);
 Route::apiResource('prices', PriceController::class);
+Route::get('/news/tags', [NewsController::class, 'getTags']);
+Route::get('/news/destinations', [NewsController::class, 'getDestinations']);
 Route::apiResource('news', NewsController::class);
+Route::apiResource('news-categories', NewsCategoryController::class);
 Route::apiResource('reviews', ReviewsController::class);
 Route::post('/subscribe', [SubscriberController::class, 'subscribe'])->middleware('throttle:10,1');
 Route::get('/subscribers', [SubscriberController::class, 'index'])->middleware('auth:admin-token');
@@ -73,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/profile', [UserController::class, 'profile']);
     Route::put('/user/profile', [UserController::class, 'update'])->name('user.profile.update');
     Route::post('user/send-otp', [UserController::class, 'sendOTP']);
+    Route::put('user/{user}/change-status', [UserController::class, 'changeStatus']);
 
     // Booking routes
     Route::apiResource('bookings', BookingController::class); // Di chuyển bookings vào nhóm auth

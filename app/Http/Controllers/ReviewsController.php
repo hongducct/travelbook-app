@@ -39,7 +39,7 @@ class ReviewsController extends Controller
             $query->where('reviewable_type', 'App\\Models\\Tour');
         }
 
-        $reviews = $query->paginate($perPage);
+        $reviews = $query->orderBy('id', 'desc')->paginate($perPage);
 
         return ReviewResource::collection($reviews);
     }
