@@ -558,6 +558,7 @@ class TourController extends Controller
                 $query->where('status', 'approved')->with('user:id,username,avatar');
             },
         ]);
+        $tour->price = $tour->prices()->orderBy('created_at', 'desc')->first()->price ?? 0;
         $tour->category = $tour->travelType?->name;
         $tour->average_rating = $tour->reviews->avg('rating') ?? 0;
         $tour->reviews = ReviewResource::collection($tour->reviews);
