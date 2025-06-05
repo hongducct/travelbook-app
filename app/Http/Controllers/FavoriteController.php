@@ -7,6 +7,7 @@ use App\Models\Tour;
 use App\Models\News;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Http\Resources\ReviewResource;
 
 class FavoriteController extends Controller
 {
@@ -14,16 +15,13 @@ class FavoriteController extends Controller
     {
         $this->middleware('auth:sanctum');
     }
+
     // Lấy danh sách wishlist
     public function index(Request $request)
     {
         $perPage = $request->input('perPage', 10);
         $type = $request->input('type'); // Thêm tham số type để filter
         $user = $request->user();
-
-        // Debug: Kiểm tra user và wishlist
-        Log::info('User ID: ' . $user->id);
-        Log::info('Filter type: ' . $type);
 
         // Bắt đầu với query cơ bản
         $query = $user->wishlist();
@@ -32,7 +30,7 @@ class FavoriteController extends Controller
         Log::info('Query before type filter: ' . $query->toSql());
         Log::info('Bindings before type filter: ', $query->getBindings());
 
-        // Filter theo type nếu có - SỬA LẠI PHẦN NÀY
+        // Filter theo type nếu có
         if ($type === 'blog') {
             $query = $query->where('favoritable_type', 'App\\Models\\News');
         } elseif ($type === 'tour') {
@@ -43,20 +41,28 @@ class FavoriteController extends Controller
         Log::info('Query after type filter: ' . $query->toSql());
         Log::info('Bindings after type filter: ', $query->getBindings());
 
-        // Thêm eager loading sau khi đã filter
+        // Thêm eager loading sau khi đã filter - SỬA LẠI PHẦN NÀY
         $query = $query->with(['favoritable' => function ($q) {
-            // Kiểm tra loại favoritable để load các mối quan hệ phù hợp
+            // Load Tour với đầy đủ relations như TourController
             $q->when($q->getModel() instanceof Tour, function ($q) {
-                $q->with(['travelType', 'location', 'vendor', 'images', 'availabilities', 'features', 'prices', 'reviews']);
+                $q->with([
+                    'travelType',
+                    'location',
+                    'vendor',
+                    'images', // Đảm bảo load images
+                    'availabilities' => function ($query) {
+                        $query->where('date', '>=', now()->toDateString())
+                            ->where('is_active', true);
+                    },
+                    'features',
+                    'reviews' => function ($query) {
+                        $query->where('status', 'approved')->with('user:id,username,avatar');
+                    },
+                ]);
             })->when($q->getModel() instanceof News, function ($q) {
-                $q->with(['vendor']); // Load các mối quan hệ cần thiết cho Blog
+                $q->with(['vendor', 'images']); // Thêm images cho News nếu cần
             });
         }]);
-
-        // Kiểm tra dữ liệu thô trước khi paginate
-        $rawData = $query->get();
-        Log::info('Raw data count: ' . $rawData->count());
-        Log::info('Raw data: ', $rawData->toArray());
 
         // Phân trang
         $wishlist = $query->paginate($perPage);
@@ -73,21 +79,41 @@ class FavoriteController extends Controller
                 return null;
             }
 
+            // Debug: Kiểm tra xem images có được load không
+            Log::info('Favoritable data: ', $favoritable->toArray());
             if ($favoritable instanceof Tour) {
-                // Xử lý dữ liệu cho Tour
-                $latestPrice = $favoritable->prices()->orderBy('date', 'desc')->first();
-                $favoritable->price = $latestPrice?->price;
+                Log::info('Tour images count: ' . $favoritable->images->count());
+            }
+
+            if ($favoritable instanceof Tour) {
+                // Xử lý dữ liệu cho Tour giống như TourController
+
+                // Get latest price - sử dụng relationship đã load
+                $favoritable->price = $favoritable->prices()->orderBy('date', 'desc')->first()?->price;
+
+                // Get travel type as category
                 $favoritable->category = $favoritable->travelType?->name;
-                $avgRating = $favoritable->reviews()->where('status', 'approved')->avg('rating');
-                $favoritable->average_rating = $avgRating;
-                $reviewCount = $favoritable->reviews()->where('status', 'approved')->count();
-                $favoritable->review_count = $reviewCount;
-                $favoritable->type = 'tour'; // Thêm type
-                unset($favoritable->prices);
+
+                // Get average rating and review count
+                $favoritable->average_rating = $favoritable->reviews->avg('rating') ?? 0;
+                $favoritable->review_count = $favoritable->reviews->count();
+
+                // Transform reviews using ReviewResource (nếu có)
+                if (class_exists('App\Http\Resources\ReviewResource')) {
+                    $favoritable->reviews = ReviewResource::collection($favoritable->reviews);
+                }
+
+                // Thêm type
+                $favoritable->type = 'tour';
+
+                // QUAN TRỌNG: Giữ lại images và chỉ unset những gì không cần
+                // Images đã được load qua eager loading nên sẽ có sẵn
                 unset($favoritable->travelType);
+                // Không unset prices vì cần để query, chỉ unset sau khi đã lấy price
+
             } elseif ($favoritable instanceof News) {
                 // Xử lý dữ liệu cho Blog
-                $favoritable->type = 'blog'; // Thêm type để frontend phân biệt
+                $favoritable->type = 'blog';
                 $favoritable->excerpt = $this->getExcerpt($favoritable->content);
             }
 
@@ -96,9 +122,6 @@ class FavoriteController extends Controller
 
         // Loại bỏ các giá trị null (nếu có tour/blog bị xóa)
         $wishlist->setCollection($wishlist->getCollection()->filter());
-
-        // Debug: Kiểm tra dữ liệu sau khi transform
-        Log::info('Wishlist data after transform: ', $wishlist->items());
 
         return response()->json($wishlist);
     }

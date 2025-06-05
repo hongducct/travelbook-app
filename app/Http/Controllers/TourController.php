@@ -63,7 +63,7 @@ class TourController extends Controller
         // Transform the response
         $tours->getCollection()->transform(function ($tour) {
             // Get latest price
-            $tour->price = $tour->prices()->orderBy('date', 'desc')->first()?->price;
+            $tour->price = $tour->prices()->orderBy('created_at', 'desc')->first()?->price;
 
             // Get travel type as category
             $tour->category = $tour->travelType?->name;
@@ -109,7 +109,7 @@ class TourController extends Controller
         ])->findOrFail($id);
 
         // Get latest price
-        $tour->price = $tour->prices()->orderBy('date', 'desc')->first()?->price;
+        $tour->price = $tour->prices()->orderBy('created_at', 'desc')->first()?->price;
 
         // Get travel type as category
         $tour->category = $tour->travelType?->name;
@@ -510,7 +510,7 @@ class TourController extends Controller
         }
 
         // Handle price update
-        $latestPrice = $tour->prices()->orderBy('date', 'desc')->first();
+        $latestPrice = $tour->prices()->orderBy('created_at', 'desc')->first();
         if ($latestPrice && $latestPrice->price == $validated['price']) {
             $latestPrice->touch();
         } else {
