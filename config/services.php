@@ -38,4 +38,28 @@ return [
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
     ],
+    // Add Amadeus configuration
+    'amadeus' => [
+        'base_url' => env('AMADEUS_BASE_URL', 'https://test.api.amadeus.com'),
+        'api_key' => env('AMADEUS_API_KEY'),
+        'api_secret' => env('AMADEUS_API_SECRET'),
+    ],
+
+    // VNPay Configuration
+    'vnpay' => [
+        'tmn_code' => env('VNPAY_TMN_CODE'),
+        'hash_secret' => env('VNPAY_HASH_SECRET'),
+        'url' => env('VNPAY_URL', 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
+        'return_url' => env('VNPAY_RETURN_FLIGHTS_URL', '/flights/vnpay/return'),
+    ],
+
+    // MoMo Configuration
+    'momo' => [
+        'partner_code' => env('MOMO_PARTNER_CODE'),
+        'access_key' => env('MOMO_ACCESS_KEY'),
+        'secret_key' => env('MOMO_SECRET_KEY'),
+        'endpoint' => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
+        'redirect_url' => env('MOMO_REDIRECT_URL', '/payment/momo/return'),
+        'ipn_url' => env('MOMO_IPN_URL', '/payment/momo/ipn'),
+    ],
 ];

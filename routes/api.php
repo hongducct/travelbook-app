@@ -25,6 +25,9 @@ use App\Http\Controllers\FavoriteController;
 
 use App\Http\Controllers\ChatBotController;
 
+use App\Http\Controllers\FlightController;
+use App\Http\Controllers\HotelController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -164,3 +167,27 @@ Route::get('/chatbot/tour/{id}', [ChatBotController::class, 'getTourDetails']);
 //         ], $response->status());
 //     }
 // });
+
+
+// routes/api.php
+Route::get('/booking/flight/{reference}', [FlightController::class, 'getBooking']);
+Route::get('/booking/hotel/{reference}', [HotelController::class, 'getBooking']);
+
+
+// Flight routes
+Route::prefix('flights')->group(function () {
+    Route::post('/search', [FlightController::class, 'search']);
+    Route::get('/airports', [FlightController::class, 'getAirports']);
+    Route::post('/book', [FlightController::class, 'book']);
+    Route::get('/booking/{reference}', [FlightController::class, 'getBooking']);
+    Route::get('/vnpay/callback', [FlightController::class, 'vnpayCallback']);
+});
+
+// Hotel routes
+Route::prefix('hotels')->group(function () {
+    Route::post('/search', [HotelController::class, 'search']);
+    Route::get('/cities', [HotelController::class, 'getCities']);
+    Route::post('/book', [HotelController::class, 'book']);
+    Route::get('/booking/{reference}', [HotelController::class, 'getBooking']);
+    Route::get('/vnpay/callback', [HotelController::class, 'vnpayCallback']);
+});
