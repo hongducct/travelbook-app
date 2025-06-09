@@ -141,19 +141,41 @@
         <!-- Hotel Information -->
         <div class="section">
             <h3>🏨 Thông tin khách sạn</h3>
-            <div class="hotel-name">{{ $booking->hotel_name }}</div>
+            @php
+                $hotelData = $booking->hotel_data;
+                $searchParams = $booking->search_params;
+                $cityCode = $searchParams['cityCode'] ?? '';
+                
+                $cities = [
+                    'SGN' => 'TP. Hồ Chí Minh',
+                    'HAN' => 'Hà Nội',
+                    'DAD' => 'Đà Nẵng',
+                    'NHA' => 'Nha Trang',
+                    'PQC' => 'Phú Quốc',
+                    'HUE' => 'Huế',
+                    'HOI' => 'Hội An',
+                    'VTE' => 'Vũng Tàu',
+                    'DLT' => 'Đà Lạt',
+                    'CTO' => 'Cần Thơ'
+                ];
+                
+                $cityName = $cities[$cityCode] ?? $cityCode;
+                $hotelName = $hotelData['name'] ?? 'Khách sạn cao cấp';
+            @endphp
+            
+            <div class="hotel-name">{{ $hotelName }}</div>
             <div class="info-row">
                 <span class="info-label">Thành phố:</span>
-                <span class="info-value">{{ $booking->city_name }}</span>
+                <span class="info-value">{{ $cityName }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Địa chỉ:</span>
-                <span class="info-value">{{ $hotel['address'] ?? 'Trung tâm thành phố' }}</span>
+                <span class="info-value">{{ $hotelData['address'] ?? 'Trung tâm thành phố' }}</span>
             </div>
-            @if(isset($hotel['rating']))
+            @if(isset($hotelData['rating']))
             <div class="info-row">
                 <span class="info-label">Hạng sao:</span>
-                <span class="info-value">{{ $hotel['rating'] }} ⭐</span>
+                <span class="info-value">{{ $hotelData['rating'] }} ⭐</span>
             </div>
             @endif
         </div>
@@ -161,21 +183,26 @@
         <!-- Booking Details -->
         <div class="section">
             <h3>📅 Chi tiết đặt phòng</h3>
+            @php
+                $checkInDate = isset($searchParams['checkInDate']) ? \Carbon\Carbon::parse($searchParams['checkInDate']) : null;
+                $checkOutDate = isset($searchParams['checkOutDate']) ? \Carbon\Carbon::parse($searchParams['checkOutDate']) : null;
+            @endphp
+            
             <div class="dates">
-                {{ $booking->check_in_date ? $booking->check_in_date->format('d/m/Y') : 'N/A' }} 
+                {{ $checkInDate ? $checkInDate->format('d/m/Y') : 'N/A' }} 
                 → 
-                {{ $booking->check_out_date ? $booking->check_out_date->format('d/m/Y') : 'N/A' }}
+                {{ $checkOutDate ? $checkOutDate->format('d/m/Y') : 'N/A' }}
             </div>
             <div style="text-align: center; margin: 15px 0;">
                 <span class="nights-badge">{{ $booking->nights }} đêm</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Ngày nhận phòng:</span>
-                <span class="info-value">{{ $booking->check_in_date ? $booking->check_in_date->format('d/m/Y') : 'N/A' }}</span>
+                <span class="info-value">{{ $checkInDate ? $checkInDate->format('d/m/Y') : 'N/A' }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Ngày trả phòng:</span>
-                <span class="info-value">{{ $booking->check_out_date ? $booking->check_out_date->format('d/m/Y') : 'N/A' }}</span>
+                <span class="info-value">{{ $checkOutDate ? $checkOutDate->format('d/m/Y') : 'N/A' }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Số phòng:</span>
@@ -230,34 +257,44 @@
         <!-- Guest Information -->
         <div class="section">
             <h3>👤 Thông tin khách hàng</h3>
+            @php $guestData = $booking->guest_data; @endphp
+            
             <div class="info-row">
                 <span class="info-label">Họ tên:</span>
-                <span class="info-value">{{ $booking->guest_full_name }}</span>
+                <span class="info-value">{{ ($guestData['firstName'] ?? '') . ' ' . ($guestData['lastName'] ?? '') }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Email:</span>
-                <span class="info-value">{{ $guest['email'] ?? 'N/A' }}</span>
+                <span class="info-value">{{ $guestData['email'] ?? 'N/A' }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Số điện thoại:</span>
-                <span class="info-value">{{ $guest['phone'] ?? 'N/A' }}</span>
+                <span class="info-value">{{ $guestData['phone'] ?? 'N/A' }}</span>
             </div>
         </div>
 
         <!-- Contact Information -->
         <div class="section">
             <h3>📞 Thông tin liên hệ</h3>
+            @php $contactData = $booking->contact_data; @endphp
+            
             <div class="info-row">
                 <span class="info-label">Người liên hệ:</span>
-                <span class="info-value">{{ $booking->contact_full_name ?: $booking->guest_full_name }}</span>
+                <span class="info-value">
+                    @if(isset($contactData['firstName']) && $contactData['firstName'])
+                        {{ $contactData['firstName'] . ' ' . ($contactData['lastName'] ?? '') }}
+                    @else
+                        {{ ($guestData['firstName'] ?? '') . ' ' . ($guestData['lastName'] ?? '') }}
+                    @endif
+                </span>
             </div>
             <div class="info-row">
                 <span class="info-label">Email liên hệ:</span>
-                <span class="info-value">{{ $contact['email'] ?? 'N/A' }}</span>
+                <span class="info-value">{{ $contactData['email'] ?? 'N/A' }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Số điện thoại liên hệ:</span>
-                <span class="info-value">{{ $contact['phone'] ?? 'N/A' }}</span>
+                <span class="info-value">{{ $contactData['phone'] ?? 'N/A' }}</span>
             </div>
         </div>
 
@@ -323,7 +360,7 @@
 
         <!-- Total Amount -->
         <div class="price">
-            Tổng tiền: {{ $booking->formatted_amount }}
+            Tổng tiền: {{ number_format($booking->total_amount, 0, ',', '.') }} {{ $booking->currency }}
         </div>
 
         <!-- Important Notes -->

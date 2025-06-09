@@ -225,7 +225,7 @@ class LocationController extends Controller
             ->paginate(10);
 
         // Check if location exists
-        $location = $tours->isNotEmpty() ? $tours->first()->location : Location::find($id);
+        $location = Location::find($id);
         if (!$location) {
             return response()->json(['message' => 'Location not found'], 404);
         }
