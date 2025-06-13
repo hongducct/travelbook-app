@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ChatMessageSent;
+use App\Events\NewConversation;
+use App\Models\ChatConversation;
+use App\Models\ChatMessage;
 use App\Models\Tour;
 use App\Models\Location;
-use App\Models\TravelType;
+use App\Models\AdminNotification;
 use App\Services\GeminiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,9 +23,243 @@ class ChatBotController extends Controller
         $this->geminiService = $geminiService;
     }
 
-    /**
-     * Process ANY chatbot queries with enhanced AI capabilities
-     */
+    public function sendUserMessage(Request $request)
+    {
+        Log::info('sendUserMessage called', [
+            'request_data' => $request->all(),
+            'auth_user_id' => auth('api')->id(),
+            'ip' => $request->ip(),
+            'timestamp' => now(),
+        ]);
+
+        $request->validate([
+            'message' => 'required|string|max:1000',
+            'conversation_id' => 'nullable|exists:chat_conversations,id',
+            'temp_user_id' => 'nullable|string',
+        ]);
+
+        $messageText = trim($request->message);
+        $conversationId = $request->conversation_id;
+        $tempUserId = $request->temp_user_id;
+        $userId = auth('api')->id(); // Use 'api' guard explicitly
+        $senderId = $userId ?? ($tempUserId ?: Str::random(8));
+
+        try {
+            if (!$conversationId) {
+                $conversation = ChatConversation::create([
+                    'user_id' => $userId,
+                    'status' => 'active',
+                    'started_at' => now(),
+                    'last_activity' => now(),
+                    'metadata' => $userId ? [] : json_encode(['temp_user_id' => $senderId]),
+                ]);
+                $conversationId = $conversation->id;
+
+                AdminNotification::create([
+                    'conversation_id' => $conversationId,
+                    'user_id' => $senderId,
+                    'message' => 'New user conversation started.',
+                    'priority' => 'normal',
+                    'notified_at' => now(),
+                ]);
+
+                Log::info('Firing NewConversation event', ['conversation_id' => $conversationId]);
+                event(new NewConversation($conversationId));
+                broadcast(new NewConversation($conversationId))->toOthers();
+            } else {
+                $conversation = ChatConversation::findOrFail($conversationId);
+                $conversation->update(['last_activity' => now()]);
+            }
+Log::info('Start processing');
+$start = microtime(true);
+            $message = ChatMessage::create([
+                'conversation_id' => $conversationId,
+                'sender_type' => 'user',
+                'sender_id' => $senderId,
+                'message' => $messageText,
+                'timestamp' => now(),
+                'is_read' => false,
+            ]);
+Log::info('End processing, time: ' . (microtime(true) - $start) . 's');
+            Log::info('Firing ChatMessageSent event', [
+                'conversation_id' => $conversationId,
+                'message' => $messageText,
+                'sender_type' => 'user',
+                'sender_id' => $senderId,
+            ]);
+            event(new ChatMessageSent($conversationId, $messageText, 'user', $senderId));
+
+            return response()->json([
+                'message' => 'Tin nhắn đã được gửi.',
+                'conversation_id' => $conversationId,
+                'data' => [
+                    'message' => $messageText,
+                    'sender_type' => 'user',
+                    'sender_id' => $senderId,
+                    'timestamp' => $message->timestamp->toISOString(),
+                ],
+                'suggestions' => ['Tiếp tục trò chuyện', 'Xem tour nổi bật', 'Kết thúc trò chuyện'],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending user message: ' . $e->getMessage(), [
+                'conversation_id' => $conversationId,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => 'Đã xảy ra lỗi khi gửi tin nhắn.',
+                'suggestions' => ['Thử lại', 'Liên hệ qua email'],
+            ], 500);
+        }
+    }
+
+    public function getConversations()
+    {
+        try {
+            $conversations = ChatConversation::with(['messages' => function ($query) {
+                $query->latest()->first();
+            }])
+                ->orderBy('last_activity', 'desc')
+                ->get()
+                ->map(function ($conversation) {
+                    $metadata = json_decode($conversation->metadata, true) ?? [];
+                    Log::info('Processing conversation', [
+                        'id' => $conversation->id,
+                        'user_id' => $conversation->user_id,
+                        'metadata' => $metadata,
+                        'last_activity' => $conversation->last_activity,
+                    ]);
+                    return [
+                        'id' => $conversation->id,
+                        'user_id' => $conversation->user_id,
+                        'temp_user_id' => $metadata['temp_user_id'] ?? 'unknown-' . Str::random(8),
+                        'last_activity' => $conversation->last_activity->toISOString(),
+                    ];
+                });
+
+            Log::info('Fetched conversations', ['count' => $conversations->count(), 'data' => $conversations->toArray()]);
+            return response()->json($conversations);
+        } catch (\Exception $e) {
+            Log::error('Error fetching conversations: ' . $e->getMessage());
+            return response()->json(['message' => 'Lỗi khi tải danh sách trò chuyện'], 500);
+        }
+    }
+
+    public function getConversationMessages($conversationId)
+    {
+        try {
+            $messages = ChatMessage::where('conversation_id', $conversationId)
+                ->orderBy('timestamp')
+                ->get()
+                ->map(function ($message) {
+                    return [
+                        'role' => $message->sender_type,
+                        'content' => $message->message,
+                        'timestamp' => $message->timestamp->toISOString(),
+                    ];
+                });
+
+            Log::info('Fetched messages', ['conversation_id' => $conversationId, 'count' => $messages->count()]);
+            return response()->json($messages);
+        } catch (\Exception $e) {
+            Log::error('Error fetching conversation messages: ' . $e->getMessage());
+            return response()->json(['message' => 'Lỗi khi tải tin nhắn'], 500);
+        }
+    }
+
+    public function sendAdminMessage(Request $request)
+    {
+        $request->validate([
+            'conversation_id' => 'required|exists:chat_conversations,id',
+            'message' => 'required|string|max:1000',
+        ]);
+
+        $admin = auth()->user(); // ✅ đây là Admin vì dùng Sanctum và route middleware auth:sanctum
+        Log::info('admin:'.$admin);
+        if (!$admin) {
+            return response()->json(['message' => 'Không xác thực được admin.'], 401);
+        }
+
+        try {
+            $conversation = ChatConversation::findOrFail($request->conversation_id);
+            $conversation->update(['last_activity' => now()]);
+
+            $message = ChatMessage::create([
+                'conversation_id' => $request->conversation_id,
+                'sender_type' => 'admin',
+                'sender_id' => $admin->id,
+                'message' => trim($request->message),
+                'timestamp' => now(),
+                'is_read' => false,
+            ]);
+
+            event(new ChatMessageSent(
+                $request->conversation_id,
+                $request->message,
+                'admin',
+                $admin->id
+            ));
+
+            return response()->json([
+                'message' => 'Tin nhắn admin đã được gửi.',
+                'data' => [
+                    'message' => $message->message,
+                    'sender_type' => 'admin',
+                    'sender_id' => $admin->id,
+                    'timestamp' => $message->timestamp->toISOString(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending admin message: ' . $e->getMessage());
+            return response()->json(['message' => 'Đã xảy ra lỗi khi gửi tin nhắn.'], 500);
+        }
+    }
+
+
+    private function getRelevantTours($message)
+    {
+        try {
+            $message = strtolower($message);
+            $query = Tour::with(['location', 'travelType', 'images', 'reviews', 'prices']);
+
+            $locations = Location::all();
+            $relevantLocations = $locations->filter(function ($location) use ($message) {
+                return strpos($message, strtolower($location->name)) !== false;
+            });
+
+            if ($relevantLocations->isNotEmpty()) {
+                $query->whereIn('location_id', $relevantLocations->pluck('id'));
+            }
+
+            preg_match('/(\d+)\s*ngày/i', $message, $dayMatches);
+            if (!empty($dayMatches[1])) {
+                $days = intval($dayMatches[1]);
+                $query->whereBetween('days', [$days - 1, $days + 1]);
+            }
+
+            $tours = $query->limit(5)->get()->map(function ($tour) {
+                $latestPrice = $tour->prices()->orderBy('date', 'desc')->first();
+                return [
+                    'id' => $tour->id,
+                    'name' => $tour->name,
+                    'location' => $tour->location->name ?? '',
+                    'category' => $tour->travelType->name ?? '',
+                    'duration' => "{$tour->days} ngày {$tour->nights} đêm",
+                    'price' => $latestPrice ? number_format($latestPrice->price, 2) : '0.00',
+                    'price_formatted' => $latestPrice ? number_format($latestPrice->price) . ' VNĐ' : 'Liên hệ',
+                    'image' => $tour->images()->where('is_primary', true)->first()?->image_url ??
+                        $tour->images()->first()?->image_url ?? '',
+                    'rating' => round($tour->reviews->avg('rating') ?? 0, 1),
+                    'review_count' => $tour->reviews->count(),
+                ];
+            });
+
+            return $tours->toArray();
+        } catch (\Exception $e) {
+            Log::error('Error getting relevant tours: ' . $e->getMessage());
+            return [];
+        }
+    }
+
     public function processQuery(Request $request)
     {
         $request->validate([
@@ -39,7 +277,6 @@ class ChatBotController extends Controller
         ]);
 
         try {
-            // Always use AI for intelligent responses
             return $this->processWithEnhancedAI($message, $conversationId);
         } catch (\Exception $e) {
             Log::error('ChatBot Error', [
@@ -51,13 +288,9 @@ class ChatBotController extends Controller
         }
     }
 
-    /**
-     * Process with enhanced AI capabilities
-     */
     private function processWithEnhancedAI($message, $conversationId = null)
     {
         try {
-            // Analyze user intent and gather context
             $context = $this->buildComprehensiveContext($message);
 
             Log::info('Processing with AI', [
@@ -66,10 +299,8 @@ class ChatBotController extends Controller
                 'has_tours' => !empty($context['tours'])
             ]);
 
-            // Generate AI response with full context
             $aiResponse = $this->geminiService->generateIntelligentResponse($message, $context);
 
-            // Get relevant data based on the query type
             $responseData = $this->getRelevantData($message, $aiResponse['response_type']);
 
             $response = [
@@ -82,7 +313,6 @@ class ChatBotController extends Controller
                 'timestamp' => now()->toISOString()
             ];
 
-            // Add debug info if fallback was used
             if (isset($aiResponse['fallback_used']) && $aiResponse['fallback_used']) {
                 $response['fallback_used'] = true;
                 Log::warning('Fallback response used for message: ' . $message);
@@ -95,19 +325,14 @@ class ChatBotController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            // Final fallback
             return response()->json($this->getEmergencyFallbackResponse($message));
         }
     }
 
-    /**
-     * Emergency fallback when everything fails
-     */
     private function getEmergencyFallbackResponse($message)
     {
         $message = strtolower(trim($message));
 
-        // Handle basic math
         if (preg_match('/(\d+)\s*\+\s*(\d+)/', $message, $matches)) {
             $result = intval($matches[1]) + intval($matches[2]);
             return [
@@ -124,7 +349,6 @@ class ChatBotController extends Controller
             ];
         }
 
-        // Handle greetings
         if (preg_match('/\b(chào|hello|hi)\b/', $message)) {
             return [
                 'message' => 'Xin chào! 👋 Tôi là TravelBot. AI đang tạm thời bảo trì, nhưng tôi vẫn có thể giúp bạn tìm tour du lịch và giải toán cơ bản!',
@@ -154,9 +378,6 @@ class ChatBotController extends Controller
         ];
     }
 
-    /**
-     * Build comprehensive context for AI
-     */
     private function buildComprehensiveContext($message)
     {
         $context = [
@@ -169,7 +390,6 @@ class ChatBotController extends Controller
             'time_context' => now()->format('H:i')
         ];
 
-        // Add travel-specific context if relevant
         if ($this->isTravelRelated($message)) {
             $context['tours'] = $this->getRelevantTours($message);
             $context['locations'] = Location::pluck('name')->toArray();
@@ -179,34 +399,26 @@ class ChatBotController extends Controller
         return $context;
     }
 
-    /**
-     * Analyze user intent from the message
-     */
     private function analyzeUserIntent($message)
     {
         $message = strtolower($message);
 
-        // Calculation intent
         if (preg_match('/[\d\+\-\*\/=]/', $message)) {
             return 'wants_calculation';
         }
 
-        // Information seeking
         if (strpos($message, 'tại sao') !== false || strpos($message, 'như thế nào') !== false) {
             return 'seeks_explanation';
         }
 
-        // Travel planning
         if (strpos($message, 'tour') !== false || strpos($message, 'du lịch') !== false) {
             return 'planning_travel';
         }
 
-        // Greeting
         if (preg_match('/\b(chào|hello|hi|xin chào)\b/', $message)) {
             return 'greeting';
         }
 
-        // Comparison
         if (strpos($message, 'so sánh') !== false || strpos($message, 'khác nhau') !== false) {
             return 'wants_comparison';
         }
@@ -214,9 +426,6 @@ class ChatBotController extends Controller
         return 'general_inquiry';
     }
 
-    /**
-     * Detect query type for better response handling
-     */
     private function detectQueryType($message)
     {
         $message = strtolower($message);
@@ -241,9 +450,6 @@ class ChatBotController extends Controller
         return 'general';
     }
 
-    /**
-     * Extract entities (locations, numbers, etc.) from message
-     */
     private function extractEntities($message)
     {
         $entities = [
@@ -253,11 +459,9 @@ class ChatBotController extends Controller
             'prices' => []
         ];
 
-        // Extract numbers
         preg_match_all('/\d+/', $message, $numbers);
         $entities['numbers'] = array_map('intval', $numbers[0]);
 
-        // Extract locations
         try {
             $locations = Location::pluck('name')->toArray();
             foreach ($locations as $location) {
@@ -269,7 +473,6 @@ class ChatBotController extends Controller
             Log::error('Error extracting locations: ' . $e->getMessage());
         }
 
-        // Extract price mentions
         preg_match_all('/(\d+)\s*(triệu|tr|nghìn|k|đồng)/i', $message, $priceMatches);
         if (!empty($priceMatches[0])) {
             $entities['prices'] = $priceMatches[0];
@@ -278,9 +481,6 @@ class ChatBotController extends Controller
         return $entities;
     }
 
-    /**
-     * Get relevant data based on response type
-     */
     private function getRelevantData($message, $responseType)
     {
         switch ($responseType) {
@@ -288,7 +488,7 @@ class ChatBotController extends Controller
                 return $this->getSmartTourRecommendations($message);
 
             case 'calculation':
-                return []; // No additional data needed for math
+                return [];
 
             case 'greeting':
                 return $this->getFeaturedTours();
@@ -299,9 +499,6 @@ class ChatBotController extends Controller
         }
     }
 
-    /**
-     * Check if message is travel-related
-     */
     private function isTravelRelated($message)
     {
         $message = strtolower($message);
@@ -351,70 +548,12 @@ class ChatBotController extends Controller
         return false;
     }
 
-    /**
-     * Get relevant tours with improved matching
-     */
-    private function getRelevantTours($message)
-    {
-        try {
-            $message = strtolower($message);
-
-            $query = Tour::with(['location', 'travelType', 'prices' => function ($q) {
-                $q->orderBy('date', 'desc');
-            }, 'images', 'reviews']);
-
-            // Apply smart filters based on message content
-            $locations = Location::all();
-            $relevantLocations = $locations->filter(function ($location) use ($message) {
-                return strpos($message, strtolower($location->name)) !== false;
-            });
-
-            if ($relevantLocations->isNotEmpty()) {
-                $query->whereIn('location_id', $relevantLocations->pluck('id'));
-            }
-
-            // Price filtering
-            preg_match_all('/(\d+)(?:\s*(?:triệu|tr|nghìn|k))?/i', $message, $priceMatches);
-            if (!empty($priceMatches[1])) {
-                $maxPrice = max(array_map('intval', $priceMatches[1]));
-                if ($maxPrice < 100) $maxPrice *= 1000000; // Convert triệu to VND
-                else if ($maxPrice < 10000) $maxPrice *= 1000; // Convert nghìn to VND
-
-                $query->whereHas('prices', function ($q) use ($maxPrice) {
-                    $q->where('price', '<=', $maxPrice);
-                });
-            }
-
-            // Duration filtering
-            preg_match('/(\d+)\s*ngày/i', $message, $dayMatches);
-            if (!empty($dayMatches[1])) {
-                $days = intval($dayMatches[1]);
-                $query->whereBetween('days', [$days - 1, $days + 1]);
-            }
-
-            $tours = $query->limit(5)->get()->map(function ($tour) {
-                return $this->formatTourData($tour);
-            });
-
-            return $tours->toArray();
-        } catch (\Exception $e) {
-            Log::error('Error getting relevant tours: ' . $e->getMessage());
-            return [];
-        }
-    }
-
-    /**
-     * Get smart tour recommendations
-     */
     private function getSmartTourRecommendations($message)
     {
         $tours = $this->getRelevantTours($message);
         return !empty($tours) ? $tours : $this->getFeaturedTours();
     }
 
-    /**
-     * Format tour data for response
-     */
     private function formatTourData($tour)
     {
         try {
@@ -452,9 +591,6 @@ class ChatBotController extends Controller
         }
     }
 
-    /**
-     * Extract tour highlights
-     */
     private function extractTourHighlights($tour)
     {
         $highlights = [];
@@ -476,9 +612,6 @@ class ChatBotController extends Controller
         return $highlights;
     }
 
-    /**
-     * Get current season
-     */
     private function getCurrentSeason()
     {
         $month = now()->month;
@@ -488,9 +621,6 @@ class ChatBotController extends Controller
         return 'Mùa thu';
     }
 
-    /**
-     * Get popular destinations
-     */
     private function getPopularDestinations()
     {
         try {
@@ -510,9 +640,6 @@ class ChatBotController extends Controller
         }
     }
 
-    /**
-     * Get featured tours for fallback
-     */
     private function getFeaturedTours()
     {
         try {
@@ -531,9 +658,6 @@ class ChatBotController extends Controller
         }
     }
 
-    /**
-     * Intelligent fallback response
-     */
     private function getIntelligentFallbackResponse($message)
     {
         $responseType = $this->detectQueryType($message);
@@ -561,9 +685,6 @@ class ChatBotController extends Controller
         ];
     }
 
-    /**
-     * Get detailed tour info (existing method)
-     */
     public function getTourDetails($id)
     {
         try {

@@ -24,6 +24,10 @@ use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\FavoriteController;
 
 use App\Http\Controllers\ChatBotController;
+use App\Http\Controllers\EnhancedChatBotController;
+use App\Http\Controllers\AdminChatController;
+use App\Http\Controllers\WebSocketChatController;
+use App\Http\Controllers\WebSocketDebugController;
 
 use App\Http\Controllers\FlightController;
 use App\Http\Controllers\HotelController;
@@ -136,6 +140,58 @@ Route::middleware('auth:sanctum')->group(function () {
 // Route::post('/chatbot', [ChatBotController::class, 'chat']);
 Route::post('/chatbot/query', [ChatBotController::class, 'processQuery']);
 Route::get('/chatbot/tour/{id}', [ChatBotController::class, 'getTourDetails']);
+Route::post('/chatbot/user-message', [ChatBotController::class, 'sendUserMessage']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/chatbot/admin-message', [ChatBotController::class, 'sendAdminMessage']);
+    Route::get('/admin/conversations', [ChatBotController::class, 'getConversations']);
+    Route::get('/admin/conversation/{id}/messages', [ChatBotController::class, 'getConversationMessages']);
+});
+// Enhanced ChatBot routes
+// Route::prefix('chatbot')->group(function () {
+//     Route::post('/initialize', [EnhancedChatBotController::class, 'initializeChat']);
+//     Route::post('/enhanced-query', [EnhancedChatBotController::class, 'processEnhancedQuery']);
+//     Route::post('/booking-step', [EnhancedChatBotController::class, 'processBookingStep']);
+//     Route::get('/admin-messages/{conversationId}', [EnhancedChatBotController::class, 'getAdminMessages']);
+//     Route::post('/notify-admin', [EnhancedChatBotController::class, 'notifyAdmin']);
+// });
+
+// Chatbot routes
+// Route::prefix('chatbot')->group(function () {
+//     Route::post('/initialize', [EnhancedChatBotController::class, 'initializeChat']);
+//     Route::post('/enhanced-query', [EnhancedChatBotController::class, 'processEnhancedQuery']);
+//     Route::post('/notify-admin-immediate', [EnhancedChatBotController::class, 'notifyAdminImmediate']);
+//     Route::post('/booking-step', [EnhancedChatBotController::class, 'processBookingStep']);
+//     Route::get('/admin-messages/{conversationId}', [EnhancedChatBotController::class, 'getAdminMessages']);
+// });
+
+// // Admin Chat Management routes
+// Route::prefix('admin/chat')->middleware('auth:sanctum')->group(function () {
+//     Route::get('/conversations', [AdminChatController::class, 'getActiveConversations']);
+//     Route::get('/conversations/{conversationId}', [AdminChatController::class, 'getConversationDetails']);
+//     Route::post('/respond', [AdminChatController::class, 'sendAdminResponse']);
+//     Route::get('/notifications', [AdminChatController::class, 'getPendingNotifications']);
+//     Route::post('/status', [AdminChatController::class, 'updateOnlineStatus']);
+//     Route::get('/statistics', [AdminChatController::class, 'getChatStatistics']);
+//     Route::post('/conversations/{conversationId}/close', [AdminChatController::class, 'closeConversation']);
+//     Route::post('/claim-notification', [AdminChatController::class, 'claimNotification']);
+// });
+
+
+// WebSocket Debug routes
+// Route::prefix('websocket-debug')->group(function () {
+//     Route::post('/send-message', [WebSocketDebugController::class, 'sendMessage']);
+//     Route::post('/typing', [WebSocketDebugController::class, 'handleTyping']);
+//     Route::post('/admin-notification', [WebSocketDebugController::class, 'sendAdminNotification']);
+//     Route::get('/test-connection', [WebSocketDebugController::class, 'testConnection']);
+// });
+
+// // WebSocket routes
+// Route::prefix('websocket')->group(function () {
+//     Route::post('/send-message', [WebSocketChatController::class, 'sendMessage']);
+//     Route::post('/typing', [WebSocketChatController::class, 'handleTyping']);
+//     Route::post('/admin-notification', [WebSocketChatController::class, 'sendAdminNotification']);
+// });
 
 // Route::post('/chatbot', function (Request $request) {
 //     $response = Http::withToken(env('OPENAI_API_KEY'))
