@@ -4,18 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Payment;
 use App\Models\Booking;
+use App\Mail\BookingConfirmation;
+use App\Mail\BookingAdminNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 
 class PaymentController extends Controller
 {
-    // public function __construct()
-    // {
-    //     $this->middleware('auth:sanctum');
-    // }
-
     public function show(Request $request, $id)
     {
         $user = $request->user();
@@ -54,12 +52,6 @@ class PaymentController extends Controller
             }
             $booking->save();
         }
-
-        // Log::info('Payment status updated', [
-        //     'payment_id' => $payment->id,
-        //     'status' => $payment->status,
-        //     'booking_id' => $booking?->id,
-        // ]);
 
         return response()->json(['message' => 'Cập nhật trạng thái thành công', 'payment' => $payment], 200);
     }
@@ -108,7 +100,6 @@ class PaymentController extends Controller
             }
 
             $vnp_Url = 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
-            // $vnp_ReturnUrl = env('VNPAY_RETURN_URL', 'http://your-api-url.test/api/payments/vnpay/callback');
             $vnp_ReturnUrl = env('VNPAY_RETURN_URL', 'http://your-api-url.test/api/payments/vnpay/callback') . '?redirect=' . urlencode('https://travel-booking.hongducct.id.vn/payment-result');
             $vnp_TxnRef = $payment->transaction_id;
             $vnp_Amount = $request->amount * 100;
@@ -165,13 +156,6 @@ class PaymentController extends Controller
                 }
             }
 
-            // Log::info('VNPay payment URL created', [
-            //     'payment_id' => $payment->id,
-            //     'booking_id' => $booking->id,
-            //     'vnp_url' => $vnp_Url,
-            //     'shortened_url' => $shortenedUrl,
-            // ]);
-
             return response()->json([
                 'message' => 'Tạo URL thanh toán VNPay thành công',
                 'payment' => $payment,
@@ -185,11 +169,9 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Lỗi khi tạo thanh toán VNPay: ' . $e->getMessage()], 500);
         }
     }
+
     public function vnpayCallback(Request $request)
     {
-        // Log toàn bộ request để debug
-        // Log::info('VNPay callback received', ['request' => $request->all()]);
-
         // Lấy secret key từ .env
         $vnp_HashSecret = env('VNPAY_HASH_SECRET');
 
@@ -247,6 +229,9 @@ class PaymentController extends Controller
                 if ($booking) {
                     $booking->status = 'confirmed';
                     $booking->save();
+
+                    // Gửi email cho cả khách hàng và admin khi VNPay thành công
+                    $this->sendVNPaySuccessEmails($booking);
                 }
 
                 Log::info('VNPay payment completed', [
@@ -282,6 +267,38 @@ class PaymentController extends Controller
                 'request' => $request->all(),
             ]);
             return redirect()->away('https://travel-booking.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Lỗi xử lý thanh toán: ' . $e->getMessage()));
+        }
+    }
+
+    /**
+     * Gửi email thông báo khi VNPay thanh toán thành công
+     */
+    private function sendVNPaySuccessEmails($booking)
+    {
+        try {
+            $bookingWithRelations = $booking->load(['user', 'bookable', 'payment']);
+
+            // Gửi email cho khách hàng
+            Mail::to($bookingWithRelations->user->email)->send(new BookingConfirmation($bookingWithRelations));
+
+            // Gửi email cho admin
+            $adminEmail = env('ADMIN_EMAIL', 'travelbooking@hongducct.id.vn');
+            Mail::to($adminEmail)->send(new BookingAdminNotification($bookingWithRelations));
+
+            Log::info('VNPay success emails sent successfully', [
+                'booking_id' => $booking->id,
+                'customer_email' => $bookingWithRelations->user->email,
+                'admin_email' => $adminEmail,
+                'payment_method' => 'vnpay',
+                'transaction_id' => $bookingWithRelations->payment->transaction_id
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send VNPay success emails', [
+                'booking_id' => $booking->id,
+                'payment_id' => $booking->payment_id,
+                'error' => $e->getMessage()
+            ]);
+            // Không throw exception để không ảnh hưởng đến quá trình callback
         }
     }
 }

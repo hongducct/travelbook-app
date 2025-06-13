@@ -10,10 +10,13 @@ use App\Models\Payment;
 use App\Models\Voucher;
 use App\Models\VoucherUsage;
 use App\Http\Requests\StoreBookingRequest;
+use App\Mail\BookingConfirmation;
+use App\Mail\BookingAdminNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class BookingController extends Controller
 {
@@ -138,7 +141,7 @@ class BookingController extends Controller
                 // Lấy giá tour
                 $price = Price::where('tour_id', $tour->id)
                     // ->where('date', '<=', $startDate)
-                    ->orderBy('date', 'desc')
+                    ->orderBy('created_at', 'desc')
                     ->first()?->price ?? $tour->price;
 
                 if (!$price) {
@@ -243,17 +246,10 @@ class BookingController extends Controller
 
                     $booking->payment_id = $payment->id;
                     $booking->save();
-                }
 
-                // // Log thành công
-                // Log::info('Booking created', [
-                //     'booking_id' => $booking->id,
-                //     'payment_id' => $payment?->id,
-                //     'voucher' => $voucher ? $voucher->toArray() : null,
-                //     'discount' => $discount,
-                //     'total_price' => $totalPrice,
-                //     'payment_method' => $paymentMethod,
-                // ]);
+                    // Gửi email cho cả khách hàng và admin
+                    $this->sendBookingEmails($booking);
+                }
 
                 return response()->json([
                     'message' => 'Đặt tour thành công!',
@@ -268,6 +264,36 @@ class BookingController extends Controller
                 return response()->json(['message' => 'Lỗi khi tạo booking: ' . $e->getMessage()], 500);
             }
         });
+    }
+
+    /**
+     * Gửi email thông báo cho cả khách hàng và admin
+     */
+    private function sendBookingEmails($booking)
+    {
+        try {
+            $bookingWithRelations = $booking->load(['user', 'bookable', 'payment']);
+
+            // Gửi email cho khách hàng
+            Mail::to($bookingWithRelations->user->email)->send(new BookingConfirmation($bookingWithRelations));
+
+            // Gửi email cho admin
+            $adminEmail = env('ADMIN_EMAIL', 'travelbooking@hongducct.id.vn');
+            Mail::to($adminEmail)->send(new BookingAdminNotification($bookingWithRelations));
+
+            Log::info('Booking emails sent successfully', [
+                'booking_id' => $booking->id,
+                'customer_email' => $bookingWithRelations->user->email,
+                'admin_email' => $adminEmail,
+                'payment_method' => $bookingWithRelations->payment->method ?? 'unknown'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send booking emails', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage()
+            ]);
+            // Không throw exception để không ảnh hưởng đến quá trình booking
+        }
     }
 
     public function update(Request $request, $id)
