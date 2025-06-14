@@ -1,14 +1,9 @@
 # syntax = docker/dockerfile:experimental
 
-# Default to PHP 8.2, but we attempt to match
-# the PHP version from the user (wherever `flyctl launch` is run)
-# Valid version values are PHP 7.4+
 ARG PHP_VERSION=8.2
 ARG NODE_VERSION=18
 FROM fideloper/fly-laravel:${PHP_VERSION} as base
 
-# PHP_VERSION needs to be repeated here
-# See https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact
 ARG PHP_VERSION
 
 LABEL fly_launch_runtime="laravel"
@@ -18,6 +13,10 @@ RUN apt-get update && apt-get install -y supervisor
 
 # Copy application code, skipping files based on .dockerignore
 COPY . /var/www/html
+
+# Create and set permissions for required directories
+RUN mkdir -p /var/lib/nginx/body /var/run \
+    && chown -R www-data:www-data /var/lib/nginx /var/run
 
 # Ensure Nginx listens on the correct port (PORT or 8080 as fallback)
 RUN sed -i 's/listen 80;/listen ${PORT:-8080};/g' /etc/nginx/sites-enabled/default
@@ -33,7 +32,7 @@ RUN composer install --optimize-autoloader --no-dev \
 # Copy supervisord configuration
 COPY .fly/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Laravel 11 made changes to how trusting all proxies works
+# Laravel 11 proxy trust configuration
 RUN if php artisan --version | grep -q "Laravel Framework 1[1-9]"; then \
     sed -i='' '/->withMiddleware(function (Middleware \$middleware) {/a\
     \$middleware->trustProxies(at: "*");\
@@ -42,7 +41,7 @@ RUN if php artisan --version | grep -q "Laravel Framework 1[1-9]"; then \
     sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php; \
     fi
 
-# If we're using Octane...
+# Octane configuration
 RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
     rm -rf /etc/supervisor/conf.d/fpm.conf; \
     if grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
