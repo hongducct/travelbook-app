@@ -1,0 +1,15 @@
+# syntax = docker/dockerfile:experimental
+
+ARG PHP_VERSION=8.2
+FROM fideloper/fly-laravel:${PHP_VERSION}
+
+# Copy application code
+COPY . /var/www/html
+
+RUN composer install --optimize-autoloader --no-dev \
+    && mkdir -p storage/logs \
+    && php artisan optimize:clear \
+    && chown -R www-data:www-data /var/www/html
+
+# Command to run WebSocket server
+CMD ["php", "artisan", "websockets:serve", "--host=0.0.0.0", "--port=6001"]
