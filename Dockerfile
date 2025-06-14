@@ -13,7 +13,10 @@ ARG PHP_VERSION
 
 LABEL fly_launch_runtime="laravel"
 
-# copy application code, skipping files based on .dockerignore
+# Install supervisor
+RUN apt-get update && apt-get install -y supervisor
+
+# Copy application code, skipping files based on .dockerignore
 COPY . /var/www/html
 
 RUN composer install --optimize-autoloader --no-dev \
@@ -24,28 +27,31 @@ RUN composer install --optimize-autoloader --no-dev \
     && cp .fly/entrypoint.sh /entrypoint \
     && chmod +x /entrypoint
 
+# Copy supervisord configuration
+COPY .fly/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
 # Laravel 11 made changes to how trusting all proxies works, see https://laravel.com/docs/11.x/requests#trusting-all-proxies and https://laravel.com/docs/10.x/requests#trusting-all-proxies
 RUN if php artisan --version | grep -q "Laravel Framework 1[1-9]"; then \
     sed -i='' '/->withMiddleware(function (Middleware \$middleware) {/a\
-        \$middleware->trustProxies(at: "*");\
-' bootstrap/app.php; \
-  else \
+    \$middleware->trustProxies(at: "*");\
+    ' bootstrap/app.php; \
+    else \
     sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php; \
-fi
+    fi
 
 # If we're using Octane...
 RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
-        rm -rf /etc/supervisor/conf.d/fpm.conf; \
-        if grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
-            mv /etc/supervisor/octane-rr.conf /etc/supervisor/conf.d/octane-rr.conf; \
-            if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi; \
-            rm -f .rr.yaml; \
-        else \
-            mv .fly/octane-swoole /etc/services.d/octane; \
-            mv /etc/supervisor/octane-swoole.conf /etc/supervisor/conf.d/octane-swoole.conf; \
-        fi; \
-        rm /etc/nginx/sites-enabled/default; \
-        ln -sf /etc/nginx/sites-available/default-octane /etc/nginx/sites-enabled/default; \
+    rm -rf /etc/supervisor/conf.d/fpm.conf; \
+    if grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
+    mv /etc/supervisor/octane-rr.conf /etc/supervisor/conf.d/octane-rr.conf; \
+    if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi; \
+    rm -f .rr.yaml; \
+    else \
+    mv .fly/octane-swoole /etc/services.d/octane; \
+    mv /etc/supervisor/octane-swoole.conf /etc/supervisor/conf.d/octane-swoole.conf; \
+    fi; \
+    rm /etc/nginx/sites-enabled/default; \
+    ln -sf /etc/nginx/sites-available/default-octane /etc/nginx/sites-enabled/default; \
     fi
 
 # Multi-stage build: Build static assets
@@ -53,49 +59,44 @@ RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
 FROM node:${NODE_VERSION} as node_modules_go_brrr
 
 RUN mkdir /app
-
-RUN mkdir -p  /app
+RUN mkdir -p /app
 WORKDIR /app
 COPY . .
 COPY --from=base /var/www/html/vendor /app/vendor
 
-# Use yarn or npm depending on what type of
-# lock file we might find. Defaults to
-# NPM if no lock file is found.
+# Use yarn or npm depending on what type of lock file we might find. Defaults to NPM if no lock file is found.
 # Note: We run "production" for Mix and "build" for Vite
 RUN if [ -f "vite.config.js" ]; then \
-        ASSET_CMD="build"; \
+    ASSET_CMD="build"; \
     else \
-        ASSET_CMD="production"; \
+    ASSET_CMD="production"; \
     fi; \
     if [ -f "yarn.lock" ]; then \
-        yarn install --frozen-lockfile; \
-        yarn $ASSET_CMD; \
+    yarn install --frozen-lockfile; \
+    yarn $ASSET_CMD; \
     elif [ -f "pnpm-lock.yaml" ]; then \
-        corepack enable && corepack prepare pnpm@latest-8 --activate; \
-        pnpm install --frozen-lockfile; \
-        pnpm run $ASSET_CMD; \
+    corepack enable && corepack prepare pnpm@latest-8 --activate; \
+    pnpm install --frozen-lockfile; \
+    pnpm run $ASSET_CMD; \
     elif [ -f "package-lock.json" ]; then \
-        npm ci --no-audit; \
-        npm run $ASSET_CMD; \
+    npm ci --no-audit; \
+    npm run $ASSET_CMD; \
     else \
-        npm install; \
-        npm run $ASSET_CMD; \
+    npm install; \
+    npm run $ASSET_CMD; \
     fi;
 
-# From our base container created above, we
-# create our final image, adding in static
-# assets that we generated above
+# From our base container created above, we create our final image, adding in static assets that we generated above
 FROM base
 
-# Packages like Laravel Nova may have added assets to the public directory
-# or maybe some custom assets were added manually! Either way, we merge
-# in the assets we generated above rather than overwrite them
+# Packages like Laravel Nova may have added assets to the public directory or maybe some custom assets were added manually! Either way, we merge in the assets we generated above rather than overwrite them
 COPY --from=node_modules_go_brrr /app/public /var/www/html/public-npm
 RUN rsync -ar /var/www/html/public-npm/ /var/www/html/public/ \
     && rm -rf /var/www/html/public-npm \
     && chown -R www-data:www-data /var/www/html/public
 
-EXPOSE 8080
+# Expose ports for web and WebSocket
+EXPOSE 8080 6001
 
+# Use supervisord as entrypoint
 ENTRYPOINT ["/entrypoint"]
