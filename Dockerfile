@@ -19,6 +19,9 @@ RUN apt-get update && apt-get install -y supervisor
 # Copy application code, skipping files based on .dockerignore
 COPY . /var/www/html
 
+# Ensure Nginx listens on the correct port (PORT or 8080 as fallback)
+RUN sed -i 's/listen 80;/listen ${PORT:-8080};/g' /etc/nginx/sites-enabled/default
+
 RUN composer install --optimize-autoloader --no-dev \
     && mkdir -p storage/logs \
     && php artisan optimize:clear \
@@ -30,7 +33,7 @@ RUN composer install --optimize-autoloader --no-dev \
 # Copy supervisord configuration
 COPY .fly/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Laravel 11 made changes to how trusting all proxies works, see https://laravel.com/docs/11.x/requests#trusting-all-proxies and https://laravel.com/docs/10.x/requests#trusting-all-proxies
+# Laravel 11 made changes to how trusting all proxies works
 RUN if php artisan --version | grep -q "Laravel Framework 1[1-9]"; then \
     sed -i='' '/->withMiddleware(function (Middleware \$middleware) {/a\
     \$middleware->trustProxies(at: "*");\
@@ -55,7 +58,6 @@ RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
     fi
 
 # Multi-stage build: Build static assets
-# This allows us to not include Node within the final container
 FROM node:${NODE_VERSION} as node_modules_go_brrr
 
 RUN mkdir /app
@@ -64,8 +66,6 @@ WORKDIR /app
 COPY . .
 COPY --from=base /var/www/html/vendor /app/vendor
 
-# Use yarn or npm depending on what type of lock file we might find. Defaults to NPM if no lock file is found.
-# Note: We run "production" for Mix and "build" for Vite
 RUN if [ -f "vite.config.js" ]; then \
     ASSET_CMD="build"; \
     else \
@@ -86,17 +86,13 @@ RUN if [ -f "vite.config.js" ]; then \
     npm run $ASSET_CMD; \
     fi;
 
-# From our base container created above, we create our final image, adding in static assets that we generated above
 FROM base
 
-# Packages like Laravel Nova may have added assets to the public directory or maybe some custom assets were added manually! Either way, we merge in the assets we generated above rather than overwrite them
 COPY --from=node_modules_go_brrr /app/public /var/www/html/public-npm
 RUN rsync -ar /var/www/html/public-npm/ /var/www/html/public/ \
     && rm -rf /var/www/html/public-npm \
     && chown -R www-data:www-data /var/www/html/public
 
-# Expose ports for web and WebSocket
 EXPOSE 8080 6001
 
-# Use supervisord as entrypoint
 ENTRYPOINT ["/entrypoint"]

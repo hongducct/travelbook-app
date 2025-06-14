@@ -1,4 +1,4 @@
-#!/usr/bin/env shMore actions
+#!/usr/bin/env sh
 
 # Run user scripts, if they exist
 for f in /var/www/html/.fly/scripts/*.sh; do
@@ -11,5 +11,5 @@ if [ $# -gt 0 ]; then
     # If we passed a command, run it as root
     exec "$@"
 else
-    exec supervisord -c /etc/supervisor/supervisord.conf
+    exec supervisord -c /etc/supervisor/conf.d/supervisord.conf
 fi
