@@ -234,11 +234,11 @@ class PaymentController extends Controller
                     $this->sendVNPaySuccessEmails($booking);
                 }
 
-                Log::info('VNPay payment completed', [
-                    'payment_id' => $payment->id,
-                    'booking_id' => $booking?->id,
-                    'vnp_transaction_no' => $inputData['vnp_TransactionNo'],
-                ]);
+                // Log::info('VNPay payment completed', [
+                //     'payment_id' => $payment->id,
+                //     'booking_id' => $booking?->id,
+                //     'vnp_transaction_no' => $inputData['vnp_TransactionNo'],
+                // ]);
 
                 // Redirect về frontend với trạng thái thành công
                 return redirect()->away('https://travel-booking.hongducct.id.vn/payment-result?status=success&booking_id=' . ($booking?->id ?? ''));
