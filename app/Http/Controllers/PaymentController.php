@@ -92,10 +92,10 @@ class PaymentController extends Controller
             $vnp_TmnCode = env('VNPAY_TMN_CODE');
             $vnp_HashSecret = env('VNPAY_HASH_SECRET');
             if (empty($vnp_TmnCode) || empty($vnp_HashSecret)) {
-                Log::error('VNPay configuration missing', [
-                    'vnp_TmnCode' => $vnp_TmnCode,
-                    'vnp_HashSecret' => $vnp_HashSecret,
-                ]);
+                // Log::error('VNPay configuration missing', [
+                //     'vnp_TmnCode' => $vnp_TmnCode,
+                //     'vnp_HashSecret' => $vnp_HashSecret,
+                // ]);
                 return response()->json(['message' => 'Cấu hình VNPay không đầy đủ.'], 500);
             }
 
