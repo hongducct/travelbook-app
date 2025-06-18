@@ -50,6 +50,8 @@ Route::apiResource('tours', TourController::class);
 Route::get('/tours/{tourId}/prices', [TourController::class, 'getPrices']);
 Route::get('tours/{tourId}/available-dates', [TourController::class, 'getAvailableDates']);
 Route::get('tours/{tourId}/availabilities', [TourController::class, 'getAvailableDates']);
+Route::get('/tours/most-booked/this-month', [TourController::class, 'getMostBookedThisMonth']);
+Route::get('/tours/most-booked/overall', [TourController::class, 'getMostBookedOverall']);
 
 Route::apiResource('packages', PackageController::class);
 Route::apiResource('locations', LocationController::class);

@@ -582,4 +582,122 @@ class TourController extends Controller
 
         return response()->json(['message' => 'Tour deleted']);
     }
+
+    public function getMostBookedThisMonth(Request $request)
+    {
+        $limit = $request->input('limit', 6);
+
+        // Get current month start and end dates
+        $currentMonthStart = now()->startOfMonth()->toDateString();
+        $currentMonthEnd = now()->endOfMonth()->toDateString();
+
+        $tours = Tour::with([
+            'travelType',
+            'location',
+            'vendor',
+            'images',
+            'availabilities' => function ($query) {
+                $query->where('date', '>=', now()->toDateString())
+                    ->where('is_active', true);
+            },
+            'features',
+            'reviews' => function ($query) {
+                $query->where('status', 'approved')->with('user:id,username,avatar');
+            },
+        ])
+            ->withCount([
+                'bookings as bookings_this_month_count' => function ($query) use ($currentMonthStart, $currentMonthEnd) {
+                    $query->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
+                        ->whereIn('status', ['confirmed', 'pending']); // Only count confirmed and pending bookings
+                }
+            ])
+            ->having('bookings_this_month_count', '>', 0) // Only tours with bookings this month
+            ->orderBy('bookings_this_month_count', 'desc')
+            ->limit($limit)
+            ->get();
+
+        // Transform the response
+        $tours->transform(function ($tour) {
+            // Get latest price
+            $tour->price = $tour->prices()->orderBy('created_at', 'desc')->first()?->price;
+
+            // Get travel type as category
+            $tour->category = $tour->travelType?->name;
+
+            // Get average rating and review count
+            $tour->average_rating = $tour->reviews->avg('rating') ?? 0;
+            $tour->review_count = $tour->reviews->count();
+
+            // Transform reviews using ReviewResource
+            $tour->reviews = ReviewResource::collection($tour->reviews);
+
+            unset($tour->prices, $tour->travelType);
+
+            return $tour;
+        });
+
+        return response()->json([
+            'data' => $tours,
+            'month' => now()->format('Y-m'),
+            'total_found' => $tours->count()
+        ]);
+    }
+
+    /**
+     * Get the most booked tours overall (fallback if no bookings this month)
+     */
+    public function getMostBookedOverall(Request $request)
+    {
+        $limit = $request->input('limit', 15);
+
+        $tours = Tour::with([
+            'travelType',
+            'location',
+            'vendor',
+            'images',
+            'availabilities' => function ($query) {
+                $query->where('date', '>=', now()->toDateString())
+                    ->where('is_active', true);
+            },
+            'features',
+            'reviews' => function ($query) {
+                $query->where('status', 'approved')->with('user:id,username,avatar');
+            },
+        ])
+            ->withCount([
+                'bookings as total_bookings_count' => function ($query) {
+                    $query->whereIn('status', ['confirmed', 'pending']);
+                }
+            ])
+            ->having('total_bookings_count', '>', 0)
+            ->orderBy('total_bookings_count', 'desc')
+            ->limit($limit)
+            ->get();
+
+        // Transform the response
+        $tours->transform(function ($tour) {
+            // Get latest price
+            $tour->price = $tour->prices()->orderBy('created_at', 'desc')->first()?->price;
+
+            // Get travel type as category
+            $tour->category = $tour->travelType?->name;
+
+            // Get average rating and review count
+            $tour->average_rating = $tour->reviews->avg('rating') ?? 0;
+            $tour->review_count = $tour->reviews->count();
+
+            // Transform reviews using ReviewResource
+            $tour->reviews = ReviewResource::collection($tour->reviews);
+
+            unset($tour->prices, $tour->travelType);
+
+            return $tour;
+        });
+
+        return response()->json([
+            'data' => $tours,
+            'type' => 'overall',
+            'total_found' => $tours->count()
+        ]);
+    }
 }

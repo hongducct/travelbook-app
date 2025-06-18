@@ -92,7 +92,7 @@ class Tour extends Model
     {
         return $this->morphMany(Review::class, 'reviewable');
     }
-    
+
     public function favorites()
     {
         return $this->morphMany(Favorite::class, 'favoritable');
@@ -101,6 +101,11 @@ class Tour extends Model
     public function itineraries()
     {
         return $this->hasMany(Itinerary::class)->orderBy('day');
+    }
+
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class, 'bookable_id')->where('bookable_type', Tour::class);
     }
     /**
      * Calculate the average rating of the tour.
