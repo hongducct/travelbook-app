@@ -104,6 +104,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/wishlist', [FavoriteController::class, 'store']);
     Route::delete('/user/wishlist/{tourId}', [FavoriteController::class, 'destroy']);
     Route::get('/user/wishlist/check/{tourId}', [FavoriteController::class, 'check']);
+
+    Route::post('/reviews/can-review', [ReviewsController::class, 'canReview']);
 });
 
 Route::get('/payments/vnpay/callback', [PaymentController::class, 'vnpayCallback']);

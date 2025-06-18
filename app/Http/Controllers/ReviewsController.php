@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Review;
+use App\Models\Booking;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
@@ -11,11 +12,12 @@ use App\Http\Resources\ReviewResource;
 use Illuminate\Support\Facades\Log;
 
 class ReviewsController extends Controller
-{   
+{
     public function __construct()
     {
         $this->middleware('auth:sanctum')->except(['index', 'show']);
     }
+
     /**
      * Display a listing of the reviews.
      *
@@ -92,11 +94,54 @@ class ReviewsController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $userId = $request->user()->id;
+        $reviewableId = $request->reviewable_id;
+        $reviewableType = $request->reviewable_type;
+
+        // Check if user has already reviewed this item
+        $existingReview = Review::where('user_id', $userId)
+            ->where('reviewable_id', $reviewableId)
+            ->where('reviewable_type', $reviewableType)
+            ->first();
+
+        if ($existingReview) {
+            return response()->json([
+                'message' => 'Bạn đã đánh giá mục này rồi. Mỗi người chỉ được đánh giá một lần.'
+            ], 422);
+        }
+
+        // For tour reviews, check if user has confirmed booking
+        if ($reviewableType === 'App\\Models\\Tour') {
+            $hasConfirmedBooking = Booking::where('user_id', $userId)
+                ->where('bookable_id', $reviewableId)
+                ->where('bookable_type', 'App\\Models\\Tour')
+                ->where('status', 'confirmed')
+                ->exists();
+
+            if (!$hasConfirmedBooking) {
+                return response()->json([
+                    'message' => 'Bạn chỉ có thể đánh giá tour sau khi đã đặt tour và được xác nhận.'
+                ], 403);
+            }
+
+            // Get the booking_id for the confirmed booking (optional, for reference)
+            $confirmedBooking = Booking::where('user_id', $userId)
+                ->where('bookable_id', $reviewableId)
+                ->where('bookable_type', 'App\\Models\\Tour')
+                ->where('status', 'confirmed')
+                ->first();
+
+            $bookingId = $confirmedBooking ? $confirmedBooking->id : null;
+        } else {
+            // For blog/news reviews, no booking required
+            $bookingId = null;
+        }
+
         $review = Review::create([
-            'user_id' => $request->user()->id,
-            'reviewable_id' => $request->reviewable_id,
-            'reviewable_type' => $request->reviewable_type,
-            'booking_id' => $request->booking_id,
+            'user_id' => $userId,
+            'reviewable_id' => $reviewableId,
+            'reviewable_type' => $reviewableType,
+            'booking_id' => $bookingId,
             'title' => $request->title,
             'rating' => $request->rating,
             'comment' => $request->comment,
@@ -175,5 +220,62 @@ class ReviewsController extends Controller
         $review->delete();
 
         return response()->json(['message' => 'Review deleted successfully']);
+    }
+
+    /**
+     * Check if user can review a specific tour
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function canReview(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'reviewable_id' => 'required|integer',
+            'reviewable_type' => 'required|string|in:App\\Models\\Tour,App\\Models\\News',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $userId = $request->user()->id;
+        $reviewableId = $request->reviewable_id;
+        $reviewableType = $request->reviewable_type;
+
+        // Check if user has already reviewed
+        $hasReviewed = Review::where('user_id', $userId)
+            ->where('reviewable_id', $reviewableId)
+            ->where('reviewable_type', $reviewableType)
+            ->exists();
+
+        if ($hasReviewed) {
+            return response()->json([
+                'can_review' => false,
+                'message' => 'Bạn đã đánh giá mục này rồi.'
+            ]);
+        }
+
+        // For tours, check confirmed booking
+        if ($reviewableType === 'App\\Models\\Tour') {
+            $hasConfirmedBooking = Booking::where('user_id', $userId)
+                ->where('bookable_id', $reviewableId)
+                ->where('bookable_type', 'App\\Models\\Tour')
+                ->where('status', 'confirmed')
+                ->exists();
+
+            return response()->json([
+                'can_review' => $hasConfirmedBooking,
+                'message' => $hasConfirmedBooking
+                    ? 'Bạn có thể đánh giá tour này.'
+                    : 'Bạn cần đặt tour và được xác nhận mới có thể đánh giá.'
+            ]);
+        }
+
+        // For blogs/news, anyone can review
+        return response()->json([
+            'can_review' => true,
+            'message' => 'Bạn có thể đánh giá bài viết này.'
+        ]);
     }
 }
