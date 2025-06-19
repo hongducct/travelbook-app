@@ -100,7 +100,7 @@ class PaymentController extends Controller
             }
 
             $vnp_Url = 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
-            $vnp_ReturnUrl = env('VNPAY_RETURN_URL', 'http://your-api-url.test/api/payments/vnpay/callback') . '?redirect=' . urlencode('https://travel-booking.hongducct.id.vn/payment-result');
+            $vnp_ReturnUrl = env('VNPAY_RETURN_URL', 'http://your-api-url.test/api/payments/vnpay/callback') . '?redirect=' . urlencode('https://bookingtour.hongducct.id.vn/payment-result');
             $vnp_TxnRef = $payment->transaction_id;
             $vnp_Amount = $request->amount * 100;
             $vnp_Locale = 'vn';
@@ -200,7 +200,7 @@ class PaymentController extends Controller
                     'request' => $request->all(),
                     'calculated_hash' => $secureHash,
                 ]);
-                return redirect()->away('https://travel-booking.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Chữ ký không hợp lệ'));
+                return redirect()->away('https://bookingtour.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Chữ ký không hợp lệ'));
             }
 
             // Tìm payment dựa trên vnp_TxnRef
@@ -209,7 +209,7 @@ class PaymentController extends Controller
                 Log::error('VNPay callback payment not found', [
                     'vnp_TxnRef' => $inputData['vnp_TxnRef'],
                 ]);
-                return redirect()->away('https://travel-booking.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Không tìm thấy thanh toán'));
+                return redirect()->away('https://bookingtour.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Không tìm thấy thanh toán'));
             }
 
             // Tìm booking liên quan
@@ -241,7 +241,7 @@ class PaymentController extends Controller
                 // ]);
 
                 // Redirect về frontend với trạng thái thành công
-                return redirect()->away('https://travel-booking.hongducct.id.vn/payment-result?status=success&booking_id=' . ($booking?->id ?? ''));
+                return redirect()->away('https://bookingtour.hongducct.id.vn/payment-result?status=success&booking_id=' . ($booking?->id ?? ''));
             } else {
                 // Thanh toán thất bại
                 $payment->status = 'failed';
@@ -259,14 +259,14 @@ class PaymentController extends Controller
                 ]);
 
                 // Redirect về frontend với trạng thái thất bại
-                return redirect()->away('https://travel-booking.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Thanh toán thất bại'));
+                return redirect()->away('https://bookingtour.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Thanh toán thất bại'));
             }
         } catch (\Exception $e) {
             Log::error('VNPay callback processing failed', [
                 'error' => $e->getMessage(),
                 'request' => $request->all(),
             ]);
-            return redirect()->away('https://travel-booking.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Lỗi xử lý thanh toán: ' . $e->getMessage()));
+            return redirect()->away('https://bookingtour.hongducct.id.vn/payment-result?status=failed&message=' . urlencode('Lỗi xử lý thanh toán: ' . $e->getMessage()));
         }
     }
 
